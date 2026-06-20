@@ -1,0 +1,1 @@
+C:\Users\admin\.trae-cn\extensions\anthropic.claude-code-2.1.161-win32-x64\resources\native-binary\claude.exe

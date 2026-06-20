@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- 关键Viewport设置，同时适配两种场景 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>学校电脑管理系统 (跨设备版)</title>
+    <style>
+        /* ====== 基础与全局重置 ====== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: "Microsoft YaHei", -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1a2980, #26d0ce);
+            color: #333;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+        a { text-decoration: none; }
+        button { border: none; cursor: pointer; font-family: inherit; }
+
+        /* ====== 横屏词典笔模式 (960x320) 核心布局 ====== */
+        /* 当屏幕宽度充足且高度较小时，应用横屏布局 */
+        @media (min-aspect-ratio: 2/1) {
+            body {
+                display: flex;
+                flex-direction: column;
+                background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            }
+            .header {
+                background-color: rgba(0, 0, 0, 0.85);
+                color: white;
+                padding: 10px 20px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 3px solid #00b4ff;
+                flex-shrink: 0;
+            }
+            .logo { font-size: 20px; font-weight: bold; color: #00e5ff; }
+            .device-tag { 
+                font-size: 14px; 
+                background: #FF9800; 
+                padding: 3px 10px; 
+                border-radius: 10px; 
+            }
+            .main-content {
+                display: flex;
+                flex: 1;
+                padding: 10px;
+                overflow: hidden;
+            }
+            .sidebar {
+                width: 200px;
+                background-color: rgba(255, 255, 255, 0.95);
+                border-radius: 8px;
+                margin-right: 10px;
+                padding: 15px 10px;
+                overflow-y: auto;
+                flex-shrink: 0;
+            }
+            .nav-item {
+                padding: 12px 10px;
+                margin-bottom: 8px;
+                background-color: #e8f4ff;
+                border-left: 5px solid #2196F3;
+                border-radius: 6px;
+                font-size: 16px;
+                cursor: pointer;
+                text-align: center;
+                transition: all 0.3s;
+            }
+            .nav-item:hover, .nav-item.active {
+                background-color: #2196F3;
+                color: white;
+                transform: translateX(5px);
+            }
+            .content-area {
+                flex: 1;
+                background-color: rgba(255, 255, 255, 0.95);
+                border-radius: 8px;
+                padding: 15px;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+            }
+            .tab-content { 
+                display: none; 
+                flex: 1;
+                overflow-y: auto;
+            }
+            .tab-content.active { display: block; }
+            
+            /* 横屏内容网格布局 */
+            .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+            .control-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+            .file-list { display: none; }
+            
+            /* 方框式文件卡片 */
+            .file-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+                gap: 20px;
+                padding: 10px;
+            }
+            
+            .footer {
+                background-color: rgba(0, 0, 0, 0.85);
+                color: white;
+                padding: 8px 20px;
+                font-size: 14px;
+                display: flex;
+                justify-content: space-between;
+                flex-shrink: 0;
+            }
+            .mobile-nav-bar { display: none !important; } /* 横屏隐藏底部手机导航 */
+        }
+
+        /* ====== 竖屏手机模式默认布局 ====== */
+        /* 当屏幕比例更接近手机时，应用此布局 */
+        @media (max-aspect-ratio: 2/1) {
+            body {
+                background: linear-gradient(135deg, #2196F3, #1976D2);
+                overflow-y: auto;
+                height: auto;
+                min-height: 100vh;
+            }
+            .header {
+                background: rgba(255, 255, 255, 0.95);
+                color: #1565C0;
+                padding: 25px 20px;
+                text-align: center;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                border-radius: 0 0 25px 25px;
+                margin-bottom: 20px;
+            }
+            .logo { 
+                font-size: 24px; 
+                font-weight: 700; 
+                color: #0D47A1; 
+                margin-bottom: 10px; 
+            }
+            .device-tag { 
+                font-size: 14px; 
+                background: #4CAF50; 
+                color: white;
+                padding: 5px 15px; 
+                border-radius: 15px; 
+                display: inline-block;
+            }
+            .main-content {
+                padding: 0 20px 100px 20px; /* 为底部导航留空间 */
+                display: block;
+            }
+            .sidebar { display: none; } /* 手机端隐藏侧边栏 */
+            .content-area {
+                background: transparent;
+                padding: 0;
+            }
+            .tab-content { 
+                display: none; 
+            }
+            .tab-content.active { 
+                display: block; 
+                animation: fadeIn 0.5s ease;
+            }
+            
+            /* 手机卡片样式 */
+            .card {
+                background: white;
+                border-radius: 20px;
+                padding: 25px;
+                margin-bottom: 25px;
+                box-shadow: 0 6px 25px rgba(0, 0, 0, 0.08);
+            }
+            .card h2 {
+                font-size: 20px;
+                margin-bottom: 20px;
+                color: #2196F3;
+                display: flex;
+                align-items: center;
+                padding-bottom: 15px;
+                border-bottom: 2px solid #f0f0f0;
+            }
+            .card h2::before {
+                content: '';
+                display: inline-block;
+                width: 8px;
+                height: 25px;
+                background: #2196F3;
+                border-radius: 4px;
+                margin-right: 12px;
+            }
+            
+            /* 手机内容布局 */
+            .info-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+            .control-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+            .file-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+            }
+            .file-list { display: none; }
+            
+            .info-item, .file-item, .control-btn {
+                border-radius: 15px;
+                padding: 20px;
+                margin-bottom: 15px;
+            }
+            
+            /* 手机底部导航 */
+            .mobile-nav-bar {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                background: rgba(255, 255, 255, 0.98);
+                backdrop-filter: blur(10px);
+                display: flex;
+                justify-content: space-around;
+                padding: 15px 10px 25px 10px;
+                box-shadow: 0 -5px 25px rgba(0, 0, 0, 0.1);
+                border-radius: 25px 25px 0 0;
+                z-index: 1000;
+            }
+            .nav-btn {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                color: #666;
+                font-size: 12px;
+                flex: 1;
+                transition: all 0.3s;
+                padding: 10px 5px;
+                border-radius: 15px;
+            }
+            .nav-btn.active {
+                color: #2196F3;
+                background-color: rgba(33, 150, 243, 0.1);
+                transform: translateY(-10px);
+            }
+            .nav-btn i {
+                font-size: 24px;
+                margin-bottom: 8px;
+            }
+            .footer { display: none; } /* 手机端隐藏页脚 */
+        }
+
+        /* ====== 通用组件样式 (两种模式共用) ====== */
+        .info-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 6px solid #4CAF50;
+            transition: transform 0.3s;
+        }
+        .info-item:hover { transform: translateY(-5px); }
+        .info-label { font-size: 14px; color: #666; margin-bottom: 8px; }
+        .info-value { font-size: 18px; font-weight: 600; color: #333; }
+        
+        .file-item {
+            background: #f8f9fa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 6px solid #FF9800;
+            transition: transform 0.3s;
+        }
+        .file-item:hover { transform: translateX(5px); }
+
+        .file-box {
+            background: linear-gradient(145deg, #e3f2fd, #bbdefb);
+            border-radius: 15px;
+            padding: 25px 15px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border: 2px solid #2196F3;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+        .file-box:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(33, 150, 243, 0.25);
+            border-color: #00b4ff;
+        }
+
+        .file-name { font-size: 16px; font-weight: bold; }
+        .file-size { font-size: 14px; color: #888; margin-top: 5px; }
+        .file-btn {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: background 0.3s;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        .file-btn:hover { background: #388E3C; }
+        
+        .control-btn {
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+            color: white;
+            padding: 25px 15px;
+            border-radius: 15px;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .control-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(33, 150, 243, 0.3);
+        }
+        .control-btn i { font-size: 28px; margin-bottom: 10px; }
+        
+        .command-input {
+            width: 100%;
+            padding: 18px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            transition: border 0.3s;
+        }
+        .command-input:focus {
+            outline: none;
+            border-color: #2196F3;
+        }
+        .execute-btn {
+            background: linear-gradient(135deg, #9C27B0, #7B1FA2);
+            color: white;
+            width: 100%;
+            padding: 18px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            transition: transform 0.3s;
+        }
+        .execute-btn:active { transform: scale(0.98); }
+        
+        .output {
+            background: #1a1a1a;
+            color: #4CAF50;
+            padding: 20px;
+            border-radius: 12px;
+            font-family: 'Consolas', monospace;
+            font-size: 15px;
+            margin-top: 20px;
+            min-height: 150px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        
+        .quote-card {
+            background: linear-gradient(135deg, #FF9800, #F57C00);
+            color: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+        }
+        .quote-text {
+            font-size: 20px;
+            font-style: italic;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .quote-author {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        /* 动画 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 图标字体定义 */
+        .icon {
+            font-family: 'Material Icons';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+            -moz-osx-font-smoothing: grayscale;
+        }
+    </style>
+    <!-- 引入Material Icons字体 -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body>
+    <!-- 顶部标题栏 (两种模式均显示) -->
+    <div class="header">
+        <div class="logo">学校电脑管理系统</div>
+        <div class="device-tag" id="deviceInfo" style="display: none;">检测中...</div>
+    </div>
+    
+    <!-- 主内容区 -->
+    <div class="main-content">
+        <!-- 侧边栏导航 (横屏模式显示) -->
+        <div class="sidebar">
+            <div class="nav-item active" data-tab="system">
+                <i class="icon">&#xe1c0;</i> 系统信息
+            </div>
+            <div class="nav-item" data-tab="files">
+                <i class="icon">&#xe2c6;</i> 文件下载
+            </div>
+            <div class="nav-item" data-tab="remote">
+                <i class="icon">&#xe333;</i> 远程控制
+            </div>
+            <div class="nav-item" data-tab="command">
+                <i class="icon">&#xe5d2;</i> 命令执行
+            </div>
+            <div class="nav-item" data-tab="quote">
+                <i class="icon">&#xe866;</i> 今日金句
+            </div>
+        </div>
+        
+        <!-- 内容区域 -->
+        <div class="content-area">
+            <!-- 系统信息页 -->
+            <div id="system" class="tab-content active">
+                <div class="card">
+                    <h2>系统信息概览</h2>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">当前登录用户</div>
+                            <div class="info-value">{{pcName}}\{{userName}}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">操作系统</div>
+                            <div class="info-value">{{osVersion}}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">CPU</div>
+                            <div class="info-value">{{hardWare}}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">内存使用</div>
+                            <div class="info-value">{{memory}}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">磁盘空间</div>
+                            <div class="info-value">{{disk}}</div>  
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">网络状态</div>
+                            <div class="info-value">IP: {{ip}}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 文件下载页 -->
+            <div id="files" class="tab-content">
+                
+
+                <div class="card">
+                    <h2>文件下载中心</h2>
+                    <button id="return-btn" class="file-btn">返回上级</button>
+                    <button id="upload-btn" class="file-btn">上传文件</button>
+                    <div class="file-grid">
+
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 远程控制页 -->
+            <div id="remote" class="tab-content">
+                <div class="card">
+                    <h2>远程控制选项</h2>
+                    <div class="control-grid">
+                        <div class="control-btn">
+                            <i class="icon">&#xe8d4;</i>
+                            <span>远程桌面</span>
+                        </div>
+                        <div class="control-btn">
+                            <i class="icon">&#xe323;&#xe312;</i>
+                            <span>键鼠控制</span>
+                        </div>
+                        <div class="control-btn">
+                            <i class="icon">&#xe333;</i>
+                            <span>屏幕广播</span>
+                        </div>
+                        <div class="control-btn">
+                            <i class="icon">&#xe899;</i>
+                            <span>锁定电脑</span>
+                        </div>
+                        <div class="control-btn">
+                            <i class="icon">&#xe5d5;</i>
+                            <span>实时屏幕</span>
+                        </div>
+                        
+                        
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 命令执行页 -->
+            <div id="command" class="tab-content">
+                <div class="card">
+                    <h2>命令执行终端</h2>
+                    <input type="text" class="command-input" placeholder="输入命令 (如: ipconfig, systeminfo)">
+                    <button class="execute-btn">执行命令</button>
+                    <div class="output">
+                        
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 今日金句页 -->
+            <div id="quote" class="tab-content">
+                <div class="card">
+                    <div class="quote-card">
+                        <div class="quote-text">教育不是灌满一桶水，而是点燃一把火。</div>
+                        <div class="quote-author">—— 威廉·巴特勒·叶芝</div>
+                    </div>
+                    
+                    <h2 style="margin-top: 30px;">更多名言</h2>
+                    <div style="margin-top: 20px;">
+                        <div style="margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 15px;">
+                            "学而不思则罔，思而不学则殆。"
+                            <div style="font-size: 14px; color: #666; margin-top: 10px;">—— 孔子</div>
+                        </div>
+                        <div style="margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 15px;">
+                            "教育的根是苦的，但其果实是甜的。"
+                            <div style="font-size: 14px; color: #666; margin-top: 10px;">—— 亚里士多德</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 底部状态栏 (横屏模式显示) -->
+    <div class="footer">
+        <div>状态: 正常 | 用户: 教师 | 权限: 管理员</div>
+        <div>最后登录: <span id="currentTime">--:--:--</span></div>
+    </div>
+    
+    <!-- 手机底部导航栏 (竖屏模式显示) -->
+    <div class="mobile-nav-bar">
+        <div class="nav-btn active" data-tab="system">
+            <i class="icon">&#xe1c0;</i>
+            <span>系统</span>
+        </div>
+        <div class="nav-btn" data-tab="files">
+            <i class="icon">&#xe2c6;</i>
+            <span>文件</span>
+        </div>
+        <div class="nav-btn" data-tab="remote">
+            <i class="icon">&#xe333;</i>
+            <span>远程</span>
+        </div>
+        <div class="nav-btn" data-tab="command">
+            <i class="icon">&#xe5d2;</i>
+            <span>命令</span>
+        </div>
+        <div class="nav-btn" data-tab="quote">
+            <i class="icon">&#xe866;</i>
+            <span>金句</span>
+        </div>
+    </div>
+    <script src="/static/jquery.js"></script>
+    <script>
+        // 设备检测与页面切换逻辑
+        document.addEventListener('DOMContentLoaded', function() {
+            const deviceInfo = document.getElementById('deviceInfo');
+            const currentTime = document.getElementById('currentTime');
+            
+            // 检测设备类型和屏幕方向
+            function detectDeviceAndLayout() {
+                const width = window.innerWidth;
+                const height = window.innerHeight;
+                const aspectRatio = width / height;
+                
+                // 判断是横屏设备（如词典笔）还是竖屏手机
+                if (aspectRatio >= 2) { // 宽高比 >= 2: 横屏模式
+                    deviceInfo.textContent = '横屏模式 (词典笔)';
+                    document.body.classList.add('landscape');
+                    document.body.classList.remove('portrait');
+                } else { // 竖屏模式
+                    deviceInfo.textContent = '竖屏模式 (手机)';
+                    document.body.classList.add('portrait');
+                    document.body.classList.remove('landscape');
+                }
+            }
+            
+            // 更新当前时间
+            function updateTime() {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('zh-CN');
+                if (currentTime) {
+                    currentTime.textContent = timeStr;
+                }
+            }
+            
+            // 页面切换功能 (同时处理侧边栏和底部导航)
+            function setupTabSwitching() {
+                // 获取所有可切换标签的按钮
+                const allNavButtons = document.querySelectorAll('.nav-item, .nav-btn');
+                const allTabs = document.querySelectorAll('.tab-content');
+                
+                allNavButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        const targetTabId = this.getAttribute('data-tab');
+                        
+                        // 更新活跃按钮
+                        allNavButtons.forEach(btn => btn.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        // 切换对应页面
+                        allTabs.forEach(tab => {
+                            tab.classList.remove('active');
+                        });
+                        document.getElementById(targetTabId).classList.add('active');
+                    });
+                });
+            }
+            
+            // 命令执行功能
+            function setupCommandExecution() {
+                const executeBtn = document.querySelector('.execute-btn');
+                const commandInput = document.querySelector('.command-input');
+                const outputDiv = document.querySelector('.output');
+                
+                if (executeBtn && commandInput && outputDiv) {
+                    executeBtn.addEventListener('click', function() {
+                        const command = commandInput.value.trim();
+                        
+                        if (!command) {
+                            alert('请输入有效命令');
+                            return;
+                        }
+                        $.post('/terminal', { cmd: command }, function(data) {
+                            outputDiv.innerHTML = data;
+                        });
+                        
+                        
+                        
+                        commandInput.value = ''; // 清空输入
+                    });
+                    
+                    // 允许按Enter键执行
+                    commandInput.addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') {
+                            executeBtn.click();
+                        }
+                    });
+                }
+            }
+            // 模拟下载和远程控制点击
+            function setupInteractiveButtons() {
+
+                // 远程控制按钮
+                document.querySelectorAll('.control-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const action = this.querySelector('span').textContent;
+                        if(action === '键鼠控制'){
+                            window.location.href = '/control'
+                        }else if(action === '实时屏幕') {
+                            window.location.href = '/screenshot';
+                        }
+                    });
+                });
+            }
+            
+            // 初始化所有功能
+            detectDeviceAndLayout();
+            updateTime();
+            setupTabSwitching();
+            setupCommandExecution();
+            setupInteractiveButtons();
+            
+            // 监听窗口变化，自动切换布局
+            window.addEventListener('resize', detectDeviceAndLayout);
+            
+            // 每秒更新时间
+            setInterval(updateTime, 1000);
+        });
+    </script>
+    <script>
+        // 全局变量保存当前路径信息
+        let currentPathInfo = null;
+        // 下载文件
+        function getFileList(filePath, callback) {
+            $.get('/download/api', { path: filePath }, function(data) {
+                callback(data);
+            });
+        }
+        function putFileBox(filePath, fileJson, fileGrid){
+            if (fileJson && fileJson["fileList"]) {
+                currentPathInfo = fileJson;
+                if (fileJson["fileList"].length > 0){
+                    fileJson["fileList"].forEach(item => {
+                        if (item["type"] == "folder"){
+                            const fileBox = document.createElement('div');
+                            fileBox.classList.add('file-box');
+                            fileBox.innerHTML = `<i class="file-icon">📁</i><div>${item["path"]}</div>`;
+                            fileBox.addEventListener('click', function() {
+                                updateFileList(this.querySelector('div').textContent);
+                            });
+                            fileGrid.appendChild(fileBox);
+                        } else if (item["type"] == "file"){
+                            const fileBox = document.createElement('div');
+                            fileBox.classList.add('file-box');
+                            fileBox.innerHTML = `<i class="file-icon">📄</i><div>${item["path"]}</div>`;
+                            fileBox.addEventListener('click', function() {
+                                window.location.href = `/download?path=${this.querySelector('div').textContent}`;
+                            });
+                            fileGrid.appendChild(fileBox);
+                        }
+                    });
+                } else {
+                    fileGrid.innerHTML = `<div class="no-files">暂无文件</div>`;
+                }
+            }
+        }
+        
+
+        
+        // 初始化文件列表
+        function initFile() {
+            let rootPath = String.raw`/`;
+            let fileGrid = document.querySelector('.file-grid');
+            getFileList(rootPath, function(fileJson) {
+                putFileBox(rootPath, fileJson, fileGrid);
+            });
+        }
+        // 点击时获取新列表
+        function updateFileList(filePath) {
+            let fileGrid = document.querySelector('.file-grid');
+            fileGrid.innerHTML = '';
+            getFileList(filePath, function(fileJson) {
+                putFileBox(filePath, fileJson, fileGrid);
+            });
+        }
+        var returnBtn = document.getElementById('return-btn');
+        returnBtn.addEventListener('click', function() {
+            if (currentPathInfo && currentPathInfo["parentPath"]) {
+                updateFileList(currentPathInfo["parentPath"]);
+            }
+        });
+        initFile();
+        // 上传文件
+        var uploadBtn = document.getElementById('upload-btn');
+        uploadBtn.addEventListener('click', function() {
+            // Create hidden file input element
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.style.display = 'none';
+            document.body.appendChild(fileInput);
+            
+            // Trigger file selection dialog
+            fileInput.click();
+            
+            // Handle file selection
+            fileInput.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('path', currentPathInfo ? currentPathInfo["currentPath"] : '/');
+                    
+                    $.ajax({
+                        url: '/upload',
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function(response) {
+                            alert('文件上传成功');
+                            // Refresh file list
+                            if (currentPathInfo) {
+                                updateFileList(currentPathInfo["currentPath"]);
+                            } else {
+                                initFile();
+                            }
+                        },
+                        error: function() {
+                            alert('文件上传失败');
+                        }
+                    });
+                }
+                // Clean up
+                document.body.removeChild(fileInput);
+            });
+            
+        });
+    </script>
+</body>
+</html>

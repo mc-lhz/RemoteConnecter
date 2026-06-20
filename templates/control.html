@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>键盘鼠标控制面板</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --panel-bg: #16213e;
+    --key-bg: #0f3460;
+    --key-hover: #1a5276;
+    --key-active: #e94560;
+    --key-special: #533483;
+    --text: #eaeaea;
+    --text-dim: #a0a0b0;
+    --border: #2a2a4a;
+    --accent: #e94560;
+    --accent2: #0f9b8e;
+    --shadow: 0 4px 15px rgba(0,0,0,0.4);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    min-height: 100vh;
+    padding: 16px;
+    user-select: none;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--accent), #f39c12);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+  }
+
+  /* ── Container ── */
+  .container {
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+
+  /* ── Panel ── */
+  .panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+  }
+  .panel-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--accent2);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-title::before {
+    content: '';
+    width: 4px;
+    height: 16px;
+    background: var(--accent2);
+    border-radius: 2px;
+  }
+
+  /* ── Key Row ── */
+  .key-row {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 5px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* ── Key Button ── */
+  .key {
+    background: var(--key-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 0.78rem;
+    font-family: 'Consolas', 'Courier New', monospace;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.12s ease;
+    white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.2;
+  }
+  .key:hover {
+    background: var(--key-hover);
+    border-color: var(--accent2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 2;
+  }
+  .key:active, .key.pressed {
+    background: var(--key-active) !important;
+    border-color: var(--key-active) !important;
+    transform: scale(0.94) !important;
+    box-shadow: 0 0 16px var(--key-active) !important;
+    transition: all 0.04s ease !important;
+  }
+  .key .label { font-weight: 600; }
+  .key .code  { font-size: 0.58rem; color: #888; }
+
+  /* Key sizes */
+  .k-sm  { min-width:38px; height:42px; padding:2px 5px; }
+  .k-md  { min-width:48px; height:42px; padding:2px 6px; }
+  .k-lg  { min-width:68px; height:42px; padding:2px 8px; }
+  .k-xl  { min-width:88px; height:42px; padding:2px 10px; }
+  .k-xxl { min-width:110px; height:42px; padding:2px 12px; }
+  .k-special { background: var(--key-special); }
+
+  /* ── Mouse Section ── */
+  .mouse-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+  }
+  .mouse-btn {
+    background: var(--key-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 12px 8px;
+    text-align: center;
+    transition: all 0.12s ease;
+  }
+  .mouse-btn:hover {
+    background: var(--key-hover);
+    border-color: var(--accent2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .mouse-btn:active {
+    background: var(--key-active);
+    transform: scale(0.95);
+  }
+  .mouse-btn .icon { font-size: 1.6rem; display: block; margin-bottom: 4px; }
+
+  /* ── Status bar ── */
+  .status-bar {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 10px;
+  }
+  .status-item {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+  .status-item span { color: var(--accent2); font-weight: 600; }
+
+  /* ── Toast ── */
+  .toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .toast {
+    background: #1a1a2e;
+    border: 1px solid var(--accent2);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-family: 'Consolas', 'Microsoft YaHei', monospace;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    animation: slideIn 0.25s ease, fadeOut 0.25s 2.5s ease forwards;
+    pointer-events: auto;
+    max-width: 380px;
+  }
+  .toast .key-name { color: var(--accent); font-weight: 700; }
+  .toast .key-code { color: #888; font-size: 0.75rem; }
+
+  @keyframes slideIn {
+    from { transform: translateX(120%); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes fadeOut {
+    from { opacity: 1; }
+    to   { opacity: 0; transform: translateY(-10px); }
+  }
+
+  /* ── Physical key listener notice ── */
+  .physical-notice {
+    background: var(--panel-bg);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    margin-bottom: 14px;
+  }
+  .physical-notice kbd {
+    background: var(--key-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-family: 'Consolas', monospace;
+    color: var(--text);
+  }
+
+  /* ── Section toggle ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+  }
+  .section-header .arrow {
+    transition: transform 0.2s;
+    font-size: 0.8rem;
+  }
+  .collapsed .arrow { transform: rotate(-90deg); }
+  .collapsed + .key-row, .collapsed + .mouse-grid { display: none; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .key { font-size: 0.68rem; }
+    .k-sm, .k-md, .k-lg, .k-xl, .k-xxl { min-width:28px; height:34px; padding:1px 3px; }
+    .toast { font-size: 0.8rem; padding: 8px 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>⌨️ 🖱️ 键盘鼠标控制面板</h1>
+  <p class="subtitle">点击任意按键或鼠标按钮 ｜ 也可以直接按物理键盘</p>
+
+  <!-- Physical keyboard notice -->
+  <div class="physical-notice">
+    💡 直接按下物理键盘按键也会触发相应弹窗 &nbsp;|&nbsp;
+    组合键示例：<kbd>Ctrl</kbd>+<kbd>C</kbd> <kbd>Shift</kbd>+<kbd>A</kbd> <kbd>Alt</kbd>+<kbd>F4</kbd>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar" id="statusBar">
+    <div class="status-item">最后按键: <span id="lastKey">--</span></div>
+    <div class="status-item">键码: <span id="lastCode">--</span></div>
+    <div class="status-item">修饰键: <span id="modifiers">--</span></div>
+    <div class="status-item">总点击数: <span id="clickCount">0</span></div>
+  </div>
+
+  <!-- ========== 功能键区 F1-F12 ========== -->
+  <div class="panel">
+    <div class="panel-title">🔧 功能键 F1 – F12</div>
+    <div class="key-row" id="row-fkeys"></div>
+  </div>
+
+  <!-- ========== 数字行 ========== -->
+  <div class="panel">
+    <div class="panel-title">🔢 数字行</div>
+    <div class="key-row" id="row-numbers"></div>
+  </div>
+
+  <!-- ========== 字母区 QWERTY ========== -->
+  <div class="panel">
+    <div class="panel-title">🔤 字母区</div>
+    <div class="key-row" id="row-q"></div>
+    <div class="key-row" id="row-a"></div>
+    <div class="key-row" id="row-z"></div>
+  </div>
+
+  <!-- ========== 修饰键 + 控制键 ========== -->
+  <div class="panel">
+    <div class="panel-title">⌨️ 修饰键 / 控制键</div>
+    <div class="key-row" id="row-modifiers"></div>
+  </div>
+
+  <!-- ========== 导航键 ========== -->
+  <div class="panel">
+    <div class="panel-title">🧭 导航键</div>
+    <div class="key-row" id="row-navigation"></div>
+  </div>
+
+  <!-- ========== 编辑键 ========== -->
+  <div class="panel">
+    <div class="panel-title">✏️ 编辑键</div>
+    <div class="key-row" id="row-editing"></div>
+  </div>
+
+  <!-- ========== 数字小键盘 ========== -->
+  <div class="panel">
+    <div class="panel-title">🔢 数字小键盘 (Numpad)</div>
+    <div class="key-row" id="row-numpad-1"></div>
+    <div class="key-row" id="row-numpad-2"></div>
+    <div class="key-row" id="row-numpad-3"></div>
+    <div class="key-row" id="row-numpad-4"></div>
+  </div>
+
+  <!-- ========== 媒体键 ========== -->
+  <div class="panel">
+    <div class="panel-title">🎵 媒体键</div>
+    <div class="key-row" id="row-media"></div>
+  </div>
+
+  <!-- ========== 浏览器/特殊键 ========== -->
+  <div class="panel">
+    <div class="panel-title">🌐 浏览器 / 特殊键</div>
+    <div class="key-row" id="row-browser"></div>
+  </div>
+
+  <!-- ========== 鼠标控制区 ========== -->
+  <div class="panel">
+    <div class="panel-title">🖱️ 鼠标控制</div>
+    <div class="mouse-grid" id="mouseGrid"></div>
+  </div>
+
+  <!-- ========== 组合键快捷区 ========== -->
+  <div class="panel">
+    <div class="panel-title">⚡ 常用组合键</div>
+    <div class="key-row" id="row-combos"></div>
+  </div>
+
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ============================================================
+//  KEY DEFINITIONS — 涵盖所有键盘按键
+// ============================================================
+
+// 功能键 F1-F12 (+ F13-F24 for completeness)
+const functionKeys = [];
+for (let i = 1; i <= 24; i++) {
+  functionKeys.push({ label: `F${i}`, code: `F${i}`, size: 'k-sm' });
+}
+
+// 数字行 (含反引号、减号、等号、退格)
+const numberRow = [
+  { label:'`', sub:'~',  code:'Backquote',  size:'k-sm' },
+  { label:'1', sub:'!',  code:'Digit1',     size:'k-sm' },
+  { label:'2', sub:'@',  code:'Digit2',     size:'k-sm' },
+  { label:'3', sub:'#',  code:'Digit3',     size:'k-sm' },
+  { label:'4', sub:'$',  code:'Digit4',     size:'k-sm' },
+  { label:'5', sub:'%',  code:'Digit5',     size:'k-sm' },
+  { label:'6', sub:'^',  code:'Digit6',     size:'k-sm' },
+  { label:'7', sub:'&',  code:'Digit7',     size:'k-sm' },
+  { label:'8', sub:'*',  code:'Digit8',     size:'k-sm' },
+  { label:'9', sub:'(',  code:'Digit9',     size:'k-sm' },
+  { label:'0', sub:')',  code:'Digit0',     size:'k-sm' },
+  { label:'-', sub:'_',  code:'Minus',      size:'k-sm' },
+  { label:'=', sub:'+',  code:'Equal',      size:'k-sm' },
+  { label:'⌫',          code:'Backspace',   size:'k-xl', cls:'k-special' },
+];
+
+// 字母行 QWERTY
+const rowQ = [
+  { label:'Tab', code:'Tab', size:'k-lg', cls:'k-special' },
+  { label:'Q', code:'KeyQ', size:'k-sm' },
+  { label:'W', code:'KeyW', size:'k-sm' },
+  { label:'E', code:'KeyE', size:'k-sm' },
+  { label:'R', code:'KeyR', size:'k-sm' },
+  { label:'T', code:'KeyT', size:'k-sm' },
+  { label:'Y', code:'KeyY', size:'k-sm' },
+  { label:'U', code:'KeyU', size:'k-sm' },
+  { label:'I', code:'KeyI', size:'k-sm' },
+  { label:'O', code:'KeyO', size:'k-sm' },
+  { label:'P', code:'KeyP', size:'k-sm' },
+  { label:'[', sub:'{', code:'BracketLeft',  size:'k-sm' },
+  { label:']', sub:'}', code:'BracketRight', size:'k-sm' },
+  { label:'\\', sub:'|', code:'Backslash',   size:'k-lg' },
+];
+const rowA = [
+  { label:'Caps', code:'CapsLock', size:'k-xl', cls:'k-special' },
+  { label:'A', code:'KeyA', size:'k-sm' },
+  { label:'S', code:'KeyS', size:'k-sm' },
+  { label:'D', code:'KeyD', size:'k-sm' },
+  { label:'F', code:'KeyF', size:'k-sm' },
+  { label:'G', code:'KeyG', size:'k-sm' },
+  { label:'H', code:'KeyH', size:'k-sm' },
+  { label:'J', code:'KeyJ', size:'k-sm' },
+  { label:'K', code:'KeyK', size:'k-sm' },
+  { label:'L', code:'KeyL', size:'k-sm' },
+  { label:';', sub:':', code:'Semicolon', size:'k-sm' },
+  { label:"'", sub:'"', code:'Quote',     size:'k-sm' },
+  { label:'↩', code:'Enter', size:'k-xl', cls:'k-special' },
+];
+const rowZ = [
+  { label:'Shift', code:'ShiftLeft', size:'k-xxl', cls:'k-special' },
+  { label:'Z', code:'KeyZ', size:'k-sm' },
+  { label:'X', code:'KeyX', size:'k-sm' },
+  { label:'C', code:'KeyC', size:'k-sm' },
+  { label:'V', code:'KeyV', size:'k-sm' },
+  { label:'B', code:'KeyB', size:'k-sm' },
+  { label:'N', code:'KeyN', size:'k-sm' },
+  { label:'M', code:'KeyM', size:'k-sm' },
+  { label:',', sub:'<', code:'Comma',     size:'k-sm' },
+  { label:'.', sub:'>', code:'Period',    size:'k-sm' },
+  { label:'/', sub:'?', code:'Slash',     size:'k-sm' },
+  { label:'Shift', code:'ShiftRight', size:'k-xxl', cls:'k-special' },
+];
+
+// 修饰键/控制键
+const modifiers = [
+  { label:'Ctrl',  code:'ControlLeft',  size:'k-md', cls:'k-special' },
+  { label:'Win',   code:'MetaLeft',     size:'k-md', cls:'k-special' },
+  { label:'Alt',   code:'AltLeft',      size:'k-md', cls:'k-special' },
+  { label:'Space', code:'Space',        size:'k-xxl', style:'min-width:260px' },
+  { label:'Alt',   code:'AltRight',     size:'k-md', cls:'k-special' },
+  { label:'Win',   code:'MetaRight',    size:'k-md', cls:'k-special' },
+  { label:'Menu',  code:'ContextMenu',  size:'k-md', cls:'k-special' },
+  { label:'Ctrl',  code:'ControlRight', size:'k-md', cls:'k-special' },
+];
+
+// 导航键
+const navigation = [
+  { label:'↑',      code:'ArrowUp',    size:'k-sm' },
+  { label:'↓',      code:'ArrowDown',  size:'k-sm' },
+  { label:'←',      code:'ArrowLeft',  size:'k-sm' },
+  { label:'→',      code:'ArrowRight', size:'k-sm' },
+  { label:'Home',   code:'Home',       size:'k-md', cls:'k-special' },
+  { label:'End',    code:'End',        size:'k-md', cls:'k-special' },
+  { label:'PgUp',   code:'PageUp',     size:'k-md', cls:'k-special' },
+  { label:'PgDn',   code:'PageDown',   size:'k-md', cls:'k-special' },
+];
+
+// 编辑键
+const editing = [
+  { label:'Insert',   code:'Insert',     size:'k-md', cls:'k-special' },
+  { label:'Delete',   code:'Delete',     size:'k-md', cls:'k-special' },
+  { label:'PrtSc',    code:'PrintScreen',size:'k-md', cls:'k-special' },
+  { label:'ScrLk',    code:'ScrollLock', size:'k-md', cls:'k-special' },
+  { label:'Pause',    code:'Pause',      size:'k-md', cls:'k-special' },
+  { label:'NumLk',    code:'NumLock',    size:'k-md', cls:'k-special' },
+];
+
+// 数字小键盘
+const numpadRows = [
+  [
+    { label:'NumLk', code:'NumLock',    size:'k-md', cls:'k-special' },
+    { label:'/',     code:'NumpadDivide', size:'k-md', cls:'k-special' },
+    { label:'*',     code:'NumpadMultiply', size:'k-md', cls:'k-special' },
+    { label:'-',     code:'NumpadSubtract', size:'k-md', cls:'k-special' },
+  ],
+  [
+    { label:'7', code:'Numpad7', size:'k-sm' },
+    { label:'8', code:'Numpad8', size:'k-sm' },
+    { label:'9', code:'Numpad9', size:'k-sm' },
+    { label:'+', code:'NumpadAdd', size:'k-lg', cls:'k-special', style:'height:90px' },
+  ],
+  [
+    { label:'4', code:'Numpad4', size:'k-sm' },
+    { label:'5', code:'Numpad5', size:'k-sm' },
+    { label:'6', code:'Numpad6', size:'k-sm' },
+  ],
+  [
+    { label:'1', code:'Numpad1', size:'k-sm' },
+    { label:'2', code:'Numpad2', size:'k-sm' },
+    { label:'3', code:'Numpad3', size:'k-sm' },
+    { label:'↵', code:'NumpadEnter', size:'k-lg', cls:'k-special' },
+  ],
+  [
+    { label:'0',      code:'Numpad0',       size:'k-xl' },
+    { label:'.',      code:'NumpadDecimal', size:'k-sm' },
+  ],
+];
+
+// 媒体键
+const mediaKeys = [
+  { label:'🔇 静音',    code:'AudioVolumeMute', size:'k-md' },
+  { label:'🔉 音量-',   code:'AudioVolumeDown', size:'k-md' },
+  { label:'🔊 音量+',   code:'AudioVolumeUp',   size:'k-md' },
+  { label:'⏮  上一曲', code:'MediaTrackPrevious', size:'k-md' },
+  { label:'⏯  播放',   code:'MediaPlayPause',    size:'k-md' },
+  { label:'⏭  下一曲', code:'MediaTrackNext',    size:'k-md' },
+  { label:'⏹  停止',   code:'MediaStop',         size:'k-md' },
+];
+
+// 浏览器/特殊键
+const browserKeys = [
+  { label:'🌐 搜索',   code:'BrowserSearch',    size:'k-md' },
+  { label:'🏠 主页',   code:'BrowserHome',      size:'k-md' },
+  { label:'⭐ 收藏夹', code:'BrowserFavorites',  size:'k-md' },
+  { label:'📧 邮件',   code:'LaunchMail',        size:'k-md' },
+  { label:'Escape',    code:'Escape',            size:'k-md', cls:'k-special' },
+  { label:'F13',       code:'F13',               size:'k-sm' },
+  { label:'F14',       code:'F14',               size:'k-sm' },
+  { label:'F15',       code:'F15',               size:'k-sm' },
+  { label:'F16',       code:'F16',               size:'k-sm' },
+  { label:'F17',       code:'F17',               size:'k-sm' },
+  { label:'F18',       code:'F18',               size:'k-sm' },
+  { label:'F19',       code:'F19',               size:'k-sm' },
+  { label:'F20',       code:'F20',               size:'k-sm' },
+  { label:'F21',       code:'F21',               size:'k-sm' },
+  { label:'F22',       code:'F22',               size:'k-sm' },
+  { label:'F23',       code:'F23',               size:'k-sm' },
+  { label:'F24',       code:'F24',               size:'k-sm' },
+];
+
+// 鼠标按键
+const mouseButtons = [
+  { label:'单击',       icon:'👆', action:'click',      code:'MouseLeft' },
+  { label:'双击',       icon:'👆👆', action:'dblclick', code:'MouseDbl' },
+  { label:'右键',       icon:'👉', action:'contextmenu',code:'MouseRight' },
+  { label:'中键',       icon:'✊', action:'middle',     code:'MouseMiddle' },
+  { label:'滚轮上',     icon:'🔼', action:'scrollUp',   code:'WheelUp' },
+  { label:'滚轮下',     icon:'🔽', action:'scrollDown', code:'WheelDown' },
+  { label:'滚轮左',     icon:'◀',  action:'scrollLeft', code:'WheelLeft' },
+  { label:'滚轮右',     icon:'▶',  action:'scrollRight',code:'WheelRight' },
+  { label:'前进 (X1)',  icon:'⏩', action:'x1',         code:'MouseX1' },
+  { label:'后退 (X2)',  icon:'⏪', action:'x2',         code:'MouseX2' },
+  { label:'指针坐标',   icon:'📍', action:'position',   code:'MousePos' },
+];
+
+// 组合键
+const combos = [
+  { label:'Ctrl+C',  keys:['Control','KeyC'],   desc:'复制' },
+  { label:'Ctrl+V',  keys:['Control','KeyV'],   desc:'粘贴' },
+  { label:'Ctrl+X',  keys:['Control','KeyX'],   desc:'剪切' },
+  { label:'Ctrl+Z',  keys:['Control','KeyZ'],   desc:'撤销' },
+  { label:'Ctrl+Y',  keys:['Control','KeyY'],   desc:'重做' },
+  { label:'Ctrl+A',  keys:['Control','KeyA'],   desc:'全选' },
+  { label:'Ctrl+S',  keys:['Control','KeyS'],   desc:'保存' },
+  { label:'Ctrl+F',  keys:['Control','KeyF'],   desc:'查找' },
+  { label:'Ctrl+P',  keys:['Control','KeyP'],   desc:'打印' },
+  { label:'Ctrl+W',  keys:['Control','KeyW'],   desc:'关闭' },
+  { label:'Alt+Tab', keys:['Alt','Tab'],        desc:'切换窗口' },
+  { label:'Alt+F4',  keys:['Alt','F4'],         desc:'关闭窗口' },
+  { label:'Ctrl+Shift+Esc', keys:['Control','Shift','Escape'], desc:'任务管理器' },
+  { label:'Win+D',   keys:['Meta','KeyD'],      desc:'显示桌面' },
+  { label:'Win+R',   keys:['Meta','KeyR'],      desc:'运行' },
+  { label:'Win+E',   keys:['Meta','KeyE'],      desc:'文件资源管理器' },
+  { label:'Win+L',   keys:['Meta','KeyL'],      desc:'锁屏' },
+];
+
+// ============================================================
+//  STATE
+// ============================================================
+let totalClicks = 0;
+let activeModifiers = new Set();
+
+// ============================================================
+//  TOAST / POPUP
+// ============================================================
+function showToast(keyDef, mods) {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+
+  const modStr = mods && mods.length > 0
+    ? `<br><span class="key-code">修饰键: ${mods.join(' + ')}</span>`
+    : '';
+
+  toast.innerHTML = `
+    🎯 按键: <span class="key-name">${keyDef.label}</span>${modStr}
+    <br><span class="key-code">event.code: "${keyDef.code}"</span>
+  `;
+  container.appendChild(toast);
+
+  // Auto-remove
+  setTimeout(() => {
+    if (toast.parentNode) toast.parentNode.removeChild(toast);
+  }, 3000);
+
+  // Limit to 5 toasts
+  while (container.children.length > 5) {
+    container.firstChild.remove();
+  }
+}
+
+// Also show a modal-style alert for all clicks
+function showAlertPopup(keyDef, mods) {
+  const modStr = mods && mods.length > 0 ? `\n修饰键: ${mods.join(' + ')}` : '';
+  alert(
+    `🎯 按键已触发！\n\n` +
+    `按键名称: ${keyDef.label}\n` +
+    `事件代码: ${keyDef.code}${modStr}\n\n` +
+    `时间: ${new Date().toLocaleTimeString()}`
+  );
+}
+
+function handleKeyClick(keyDef) {
+  totalClicks++;
+  const mods = [...activeModifiers];
+
+  // Visual feedback
+  const btn = document.querySelector(`[data-code="${CSS.escape(keyDef.code)}"]`);
+  if (btn) {
+    btn.classList.add('pressed');
+    setTimeout(() => btn.classList.remove('pressed'), 150);
+  }
+
+  // Update status bar
+  document.getElementById('lastKey').textContent = keyDef.label;
+  document.getElementById('lastCode').textContent = keyDef.code;
+  document.getElementById('modifiers').textContent = mods.length > 0 ? mods.join('+') : '--';
+  document.getElementById('clickCount').textContent = totalClicks;
+
+  // Show toast
+  showToast(keyDef, mods);
+
+  // Show alert popup
+  showAlertPopup(keyDef, mods);
+}
+
+// ============================================================
+//  RENDER KEY BUTTON
+// ============================================================
+function createKeyButton(keyDef) {
+  const btn = document.createElement('button');
+  btn.className = `key ${keyDef.size || 'k-sm'} ${keyDef.cls || ''}`;
+  btn.dataset.code = keyDef.code;
+  btn.title = `${keyDef.label} — code: "${keyDef.code}"`;
+
+  if (keyDef.style) btn.style.cssText = keyDef.style;
+
+  btn.innerHTML = `
+    <span class="label">${keyDef.label}</span>
+    ${keyDef.sub ? `<span class="code">${keyDef.sub}</span>` : ''}
+  `;
+
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    handleKeyClick(keyDef);
+  });
+
+  return btn;
+}
+
+function renderRow(containerId, keyDefs) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  keyDefs.forEach(kd => container.appendChild(createKeyButton(kd)));
+}
+
+// ============================================================
+//  MOUSE BUTTONS
+// ============================================================
+function createMouseButton(mDef) {
+  const btn = document.createElement('button');
+  btn.className = 'mouse-btn';
+  btn.dataset.code = mDef.code;
+  btn.title = mDef.label;
+
+  btn.innerHTML = `<span class="icon">${mDef.icon}</span>${mDef.label}`;
+
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    totalClicks++;
+    document.getElementById('lastKey').textContent = mDef.label;
+    document.getElementById('lastCode').textContent = mDef.code;
+    document.getElementById('modifiers').textContent = '--';
+    document.getElementById('clickCount').textContent = totalClicks;
+
+    showToast({ label: mDef.label, code: mDef.code }, []);
+    showAlertPopup({ label: mDef.label, code: mDef.code }, []);
+
+    // Special: show mouse position
+    if (mDef.action === 'position') {
+      alert(`📍 当前鼠标指针位置:\n\n` +
+            `屏幕X: ${e.screenX}px\n屏幕Y: ${e.screenY}px\n` +
+            `页面X: ${e.pageX}px\n页面Y: ${e.pageY}px\n` +
+            `客户端X: ${e.clientX}px\n客户端Y: ${e.clientY}px`);
+    }
+  });
+
+  return btn;
+}
+
+function renderMouseGrid() {
+  const grid = document.getElementById('mouseGrid');
+  mouseButtons.forEach(m => grid.appendChild(createMouseButton(m)));
+}
+
+// ============================================================
+//  COMBO BUTTONS
+// ============================================================
+function createComboButton(combo) {
+  const btn = document.createElement('button');
+  btn.className = 'key k-lg k-special';
+  btn.title = `${combo.label} — ${combo.desc}`;
+
+  btn.innerHTML = `<span class="label">${combo.label}</span><span class="code">${combo.desc}</span>`;
+
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    totalClicks++;
+    document.getElementById('lastKey').textContent = combo.label;
+    document.getElementById('lastCode').textContent = combo.keys.join('+');
+    document.getElementById('modifiers').textContent = combo.desc;
+    document.getElementById('clickCount').textContent = totalClicks;
+
+    showToast({ label: combo.label, code: combo.keys.join(' + ') }, []);
+    showAlertPopup({ label: combo.label + ' (' + combo.desc + ')', code: combo.keys.join(' + ') }, []);
+  });
+
+  return btn;
+}
+
+function renderCombos() {
+  const row = document.getElementById('row-combos');
+  combos.forEach(c => row.appendChild(createComboButton(c)));
+}
+
+// ============================================================
+//  PHYSICAL KEYBOARD LISTENER
+// ============================================================
+document.addEventListener('keydown', (e) => {
+  // Track modifiers
+  if (e.ctrlKey)  activeModifiers.add('Ctrl');
+  if (e.shiftKey) activeModifiers.add('Shift');
+  if (e.altKey)   activeModifiers.add('Alt');
+  if (e.metaKey)  activeModifiers.add('Win');
+
+  // Prevent default for some keys to avoid browser shortcuts interfering
+  if (e.code === 'F5' || (e.ctrlKey && e.code === 'KeyS')) {
+    e.preventDefault();
+  }
+
+  // Build key def from event
+  const keyDef = {
+    label: e.key || e.code,
+    code: e.code,
+  };
+
+  const mods = [...activeModifiers];
+
+  totalClicks++;
+  document.getElementById('lastKey').textContent = e.key || e.code;
+  document.getElementById('lastCode').textContent = e.code;
+  document.getElementById('modifiers').textContent = mods.length > 0 ? mods.join('+') : '--';
+  document.getElementById('clickCount').textContent = totalClicks;
+
+  // Highlight the on-screen key
+  const btn = document.querySelector(`[data-code="${CSS.escape(e.code)}"]`);
+  if (btn) {
+    btn.classList.add('pressed');
+    setTimeout(() => btn.classList.remove('pressed'), 150);
+  }
+
+  showToast(keyDef, mods);
+
+  // Only show alert for non-modifier keys to avoid spam
+  if (!['ControlLeft','ControlRight','ShiftLeft','ShiftRight','AltLeft','AltRight','MetaLeft','MetaRight'].includes(e.code)) {
+    showAlertPopup(keyDef, mods);
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  if (!e.ctrlKey)  activeModifiers.delete('Ctrl');
+  if (!e.shiftKey) activeModifiers.delete('Shift');
+  if (!e.altKey)   activeModifiers.delete('Alt');
+  if (!e.metaKey)  activeModifiers.delete('Win');
+  document.getElementById('modifiers').textContent =
+    [...activeModifiers].length > 0 ? [...activeModifiers].join('+') : '--';
+});
+
+// ============================================================
+//  MOUSE EVENT LISTENERS (global)
+// ============================================================
+document.addEventListener('click', (e) => {
+  // Only log clicks on the page background (not on buttons, which have their own handlers)
+  if (e.target === document.body || e.target === document.documentElement) {
+    totalClicks++;
+    document.getElementById('lastKey').textContent = '鼠标左键';
+    document.getElementById('lastCode').textContent = 'MouseLeft';
+    document.getElementById('clickCount').textContent = totalClicks;
+  }
+});
+
+document.addEventListener('contextmenu', (e) => {
+  // Track right-clicks on background
+  totalClicks++;
+  document.getElementById('lastKey').textContent = '鼠标右键';
+  document.getElementById('lastCode').textContent = 'MouseRight';
+  document.getElementById('clickCount').textContent = totalClicks;
+});
+
+document.addEventListener('wheel', (e) => {
+  totalClicks++;
+  const dir = e.deltaY > 0 ? '滚轮下' : '滚轮上';
+  document.getElementById('lastKey').textContent = dir;
+  document.getElementById('lastCode').textContent = e.deltaY > 0 ? 'WheelDown' : 'WheelUp';
+  document.getElementById('clickCount').textContent = totalClicks;
+});
+
+// ============================================================
+//  RENDER ALL
+// ============================================================
+renderRow('row-fkeys',      functionKeys);
+renderRow('row-numbers',    numberRow);
+renderRow('row-q',          rowQ);
+renderRow('row-a',          rowA);
+renderRow('row-z',          rowZ);
+renderRow('row-modifiers',  modifiers);
+renderRow('row-navigation', navigation);
+renderRow('row-editing',    editing);
+renderRow('row-media',      mediaKeys);
+renderRow('row-browser',    browserKeys);
+numpadRows.forEach((row, i) => renderRow(`row-numpad-${i+1}`, row));
+renderMouseGrid();
+renderCombos();
+
+console.log('✅ 键盘鼠标控制面板已就绪');
+console.log(`   - ${functionKeys.length + numberRow.length + rowQ.length + rowA.length + rowZ.length + modifiers.length + navigation.length + editing.length + mediaKeys.length + browserKeys.length + numpadRows.flat().length} 个键盘按键`);
+console.log(`   - ${mouseButtons.length} 个鼠标按钮`);
+console.log(`   - ${combos.length} 个组合键`);
+console.log('   - 每个按键绑定 onclick → toast + alert 弹窗');
+console.log('   - 物理键盘按键同样触发弹窗');
+</script>
+
+</body>
+</html>
