@@ -234,6 +234,22 @@ def download_api():
     fileJson = get_file_json(path)
     return jsonify(fileJson)
 
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    file = request.files['file']
+    path = request.form.get('path', None)
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 500
+    elif path == r'/':
+        return jsonify({'error': '禁止上传到”此电脑“'}), 500
+    else:
+        filename = file.filename
+        try:
+            file.save(os.path.join(path, filename))
+            return jsonify({'filename': filename}), 200
+        except Exception as e:
+            return jsonify({'filename': filename, 'error': str(e)}), 500
+
 
 
 if __name__ == '__main__':

@@ -788,16 +788,13 @@
                         processData: false,
                         contentType: false,
                         success: function(response) {
-                            alert('文件上传成功');
-                            // Refresh file list
-                            if (currentPathInfo) {
-                                updateFileList(currentPathInfo["currentPath"]);
-                            } else {
-                                initFile();
-                            }
+                            alert('文件上传成功: ' + response["filename"]);
+                            updateFileList(currentPathInfo ? currentPathInfo["currentPath"] : '/');
                         },
-                        error: function() {
-                            alert('文件上传失败');
+                        error: function(xhr) {
+                            var msg = xhr.responseJSON ? xhr.responseJSON.error : xhr.statusText;
+                            alert('文件上传失败: ' + msg);
+                            updateFileList(currentPathInfo ? currentPathInfo["currentPath"] : '/');
                         }
                     });
                 }
