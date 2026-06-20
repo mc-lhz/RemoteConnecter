@@ -1,260 +1,40 @@
 # -*- coding: utf-8 -*-
-#Flask项目，实现文件远程下载
-#允许下载整个D盘
-import os
+"""RemoteConnecter — 学校电脑管理系统 (Flask 多模块版)"""
+
 import sys
-import subprocess
-import platform,psutil
-from flask import Flask, send_from_directory, request, render_template, send_file, jsonify
-from PIL import ImageGrab
-import io
-import threading
+import ctypes
 
-# PyInstaller 打包后资源路径适配
-def resource_path(relative_path):
-    """获取资源的绝对路径，兼容 PyInstaller 打包"""
-    if hasattr(sys, '_MEIPASS'):
-        return os.path.join(sys._MEIPASS, relative_path)
-    # 使用脚本所在目录作为基准，而非当前工作目录 (cwd)
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
+# ---- Windows DPI 感知设置 (必须在最开始设置) ----
+if sys.platform == 'win32':
+    try:
+        # 设置 DPI 感知级别为 Per Monitor DPI Aware V2
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except Exception:
+        try:
+            # 回退到系统级 DPI 感知
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
 
-# ========== 运行环境 & Python 版本检测 ==========
-def is_packaged():
-    """是否在 PyInstaller 打包环境中运行"""
-    return hasattr(sys, '_MEIPASS') or getattr(sys, 'frozen', False)
+from flask import Flask
 
-def get_python_version():
-    """
-    获取 Python 版本字符串，兼容开发 / PyInstaller 生产环境
-    返回: "3.9.13 (tags/v3.9.13:6de2ca5, May 17 2022, 16:36:42) [MSC v.1929 64 bit]"
-    """
-    return sys.version  # sys.version 在任何环境都可用
+from utils import get_python_version, is_packaged, resource_path
+from blueprints.main_bp import main_bp
+from blueprints.file_bp import file_bp
+from blueprints.screen_bp import screen_bp
 
+# ---- 创建应用 ----
 app = Flask(__name__)
 app.template_folder = resource_path('templates')
 app.static_folder = resource_path('static')
 
-def get_available_drives():
-    drives = []
-    for drive in range(ord('A'), ord('Z')+1):
-        drive_name = chr(drive) + ":\\"
-        if os.path.exists(drive_name):
-            drives.append(drive_name)
+# ---- 注册蓝图 ----
+app.register_blueprint(main_bp)       # 主页 & 终端
+app.register_blueprint(file_bp)       # 文件浏览 / 下载 / 上传
+app.register_blueprint(screen_bp)     # 屏幕截图 / 推流 / 远程控制
 
-    return drives
-
-def get_file_json(path):
-    fileJson = {}
-    parent = os.path.dirname(path)
-    if path == r"/":
-        fileJson["parentPath"] = r"/"
-        fileJson["currentPath"] = r"/"
-        fileJson["fileList"] = [{"type":"folder","path":drive} for drive in get_available_drives()]
-    else:
-        if parent and parent == path:
-            fileJson["parentPath"] = r"/"
-        else:
-            fileJson["parentPath"] = parent
-        fileJson["currentPath"] = path
-        fileJson["fileList"] = get_file_list(path)
-    return fileJson
-
-def get_file_list(path):
-    fileList = []
-    items = os.listdir(path)
-    
-    for item in items:
-        fullPath = os.path.join(path, item)
-        if os.path.isdir(fullPath):
-            fileList.append({"type": "folder", "path": fullPath, "name": item.lower()})
-        elif os.path.isfile(fullPath):
-            fileList.append({"type": "file", "path": fullPath, "name": item.lower()})
-    
-    # 排序：文件夹优先，然后按名称排序
-    def sort_key(x):
-        # 文件夹排在前面，名称按字母排序
-        return (0 if x["type"] == "folder" else 1, x["name"])
-    
-    fileList.sort(key=sort_key)
-    return fileList
-
-@app.route('/terminal', methods=['POST'])
-def execute_command():
-    command = request.form.get('cmd')
-    # 使用 subprocess 执行命令
-    result = subprocess.run(
-        command, 
-        shell=True,
-        capture_output=True,
-        text=True
-    )
-    output = result.stdout if result.returncode == 0 else result.stderr
-    return f"<pre>{output}</pre>"
-        
-@app.route('/')
-def index():
-    
-    pcName = platform.node()
-    userName = os.getlogin()
-    hardWare = platform.processor()
-    osVersion = platform.system() + " " + platform.release()
-    memory = str(psutil.virtual_memory().percent) + "% " + str(psutil.virtual_memory().available)
-    disk = str(psutil.disk_usage('/').percent) + "% " + str(psutil.disk_usage('/').free) +" "+ str(psutil.disk_usage('/').total)
-    ipList = [addr.address for interface, addrs in psutil.net_if_addrs().items() for addr in addrs if addr.family.name == "AF_INET"]
-    ipString = "\n".join(ipList)
-    
-    return render_template('index.html',pcName=pcName,userName=userName, hardWare=hardWare, osVersion=osVersion, ip=ipString, memory=memory, disk=disk)  
-    
-@app.route('/screenshot')
-def get_screenshot():
-    if request.args.get('getimage', None) == 'true':
-        screenshot = ImageGrab.grab()
-        img_io = io.BytesIO()      # 内存中的字节流
-        screenshot.save(img_io, 'PNG')
-        img_io.seek(0)
-        return send_file(img_io, mimetype='image/png')   # 直接返回给客户端
-    else:
-        return render_template('screenshot.html')
-
-# 浏览和下载文件
-@app.route('/download')
-def download_browse():
-    path = request.args.get('path', None)
-    
-    if not path:
-        # 如果没有路径参数，显示磁盘列表
-        drives = get_available_drives()
-        html = "<h1>选择磁盘</h1>"
-        html += "<ul>"
-        for drive in drives:
-            html += f'<li><a href="/download?path={drive}" target="_blank">{drive}</a></li>'
-        html += "</ul>"
-        return html
-    
-    # 如果路径是文件
-    elif os.path.isfile(path):
-        userOperation = request.args.get('operation', None)
-        if userOperation == 'download':
-            directory = os.path.dirname(path)
-            filename = os.path.basename(path)
-            directory = os.path.abspath(directory)
-            return send_from_directory(directory, filename, as_attachment=True)
-        elif userOperation == 'start':
-            # threading.Thread()
-            subprocess.run(path, check=True, shell=True)
-            return "文件已启动"
-        elif userOperation == 'delete':
-            os.remove(path)
-            return "文件已删除"
-        else:
-            html = rf'''
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>选择操作</title>
-    <link rel="stylesheet" href="/static/jquery-ui.min.css">
-    <script src="/static/jquery.js"></script>
-    <script src="/static/jquery-ui.min.js"></script>
-</head>
-<body>
-    <div id="dialog" title="选择操作">
-        <p>请选择对文件 "{os.path.basename(path)}" 的操作：</p>
-    </div>
-    <script>
-    $(function() {{
-        $("#dialog").dialog({{
-            autoOpen: true,
-            modal: true,
-            buttons: {{
-                "下载": function() {{
-                    $(this).dialog("close");
-                    window.location.href = String.raw`/download?path={path}&operation=download`;  
-                }},
-                "启动": function() {{
-                    $(this).dialog("close");
-
-                    window.location.href = String.raw`/download?path={path}&operation=start`;
-                }},
-                "删除": function() {{
-                    if (confirm("确定删除文件 {os.path.basename(path)} 吗？")) {{
-                        $(this).dialog("close");
-                        window.location.href = String.raw`/download?path={path}&operation=delete`;
-                    }}
-                }}
-            }},
-            close: function() {{
-                window.history.back();
-            }}
-        }});
-    }});
-    </script>
-</body>
-</html>
-'''
-            return html
-    # 如果路径是目录，显示内容
-    elif os.path.isdir(path):
-        fileJson = get_file_json(path)
-        fileList = fileJson["fileList"]
-        parent = fileJson["parentPath"]
-        html = f"<h1>{path}</h1>"
-        
-        parent = os.path.dirname(path)
-        
-        html += f'<p><a href="/download?path={parent}">返回上级目录  </a><a href="/download">返回磁盘列表</a></p>'
-        html += "<ul>"
-        
-        # 添加上级目录链接（如果不是根目录）
-        
-        if parent and parent != path:
-            html += f'<li><a href="/download?path={parent}" target="_blank">..</a></li>'
-        
-        for item in fileList:
-            if item["type"] == "folder":
-                fullPath = item["path"]
-                name = item["name"]
-                html += f'<li><a href="/download?path={fullPath}" target="_blank" style="color: #0000FF;">{name}</a></li>'
-            elif item["type"] == "file":
-                fullPath = item["path"]
-                name = item["name"]
-                html += f'<li><a href="/download?path={fullPath}" target="_blank" style="color: #FF0000;">{name}</a></li>'
-            
-            
-            
-        
-        html += "</ul>"
-        return html
-    else:
-        return f"路径不存在: {path}"
-@app.route('/download/api')
-def download_api():
-    path = request.args.get('path', None)
-    
-    fileJson = get_file_json(path)
-    return jsonify(fileJson)
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    file = request.files['file']
-    path = request.form.get('path', None)
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 500
-    elif path == r'/':
-        return jsonify({'error': '禁止上传到”此电脑“'}), 500
-    else:
-        filename = file.filename
-        try:
-            file.save(os.path.join(path, filename))
-            return jsonify({'filename': filename}), 200
-        except Exception as e:
-            return jsonify({'filename': filename, 'error': str(e)}), 500
-
-
-
+# ---- 启动 ----
 if __name__ == '__main__':
     print(get_python_version())
     print(is_packaged())
-    app.run(host='0.0.0.0', port=80,debug=True,use_reloader=False)
-    
-    
+    app.run(host='0.0.0.0', port=80, debug=True, use_reloader=False)

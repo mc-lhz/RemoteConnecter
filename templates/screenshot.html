@@ -1,54 +1,262 @@
+<!DOCTYPE html>
 <html>
-    <head>
-        <title>实时屏幕</title>
-        <style>
-            body {
-                margin: 0;
-                padding: 0;
-                text-align: center;
+<head>
+    <title>实时屏幕</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            text-align: center;
+            background-color: #ffffff;
+        }
+        #video-container {
+            position: relative;
+            display: inline-block;
+        }
+        #mjpeg-stream {
+            max-width: 100%;
+            max-height: 90vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            border: 2px solid #333;
+            border-radius: 4px;
+        }
+        #fps-display {
+            margin-top: 10px;
+            color: #aaa;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div id="video-container">
+        <img id="mjpeg-stream" src="" alt="实时屏幕流">
+    </div>
+    <div id="fps-display">FPS: 0</div>
+
+    <script src="static/jquery.js"></script>
+    <script src="static/jquery-ui.min.js"></script>
+    <script>
+        var streamUrl = '/screenshot/api/stream';
+
+        var streamImg = document.getElementById('mjpeg-stream');
+        var fpsDisplay = document.getElementById('fps-display');
+
+        var frameCount = 0;
+        var lastFpsUpdate = Date.now();
+
+        streamImg.src = streamUrl;
+
+        function updateFps() {
+            var now = Date.now();
+            if (now - lastFpsUpdate >= 1000) {
+                fpsDisplay.textContent = 'FPS: ' + frameCount;
+                frameCount = 0;
+                lastFpsUpdate = now;
             }
-            #screenshot {
-                max-width: 100%; 
-                max-height: 90vh; 
-                width: auto; 
-                height: auto; 
-                object-fit: contain;
+        }
+
+        // 使用定时器检测帧变化并计算 FPS
+        setInterval(function() {
+            if (streamImg.complete && streamImg.naturalWidth > 0) {
+                frameCount++;
             }
-            #refresh-btn {
-                padding: 10px 20px;
-                font-size: 16px;
-                cursor: pointer;
+            updateFps();
+        }, 100);
+
+        // 连接中断时自动重连
+        streamImg.onerror = function() {
+            console.log('流连接中断，尝试重新连接...');
+            setTimeout(() => {
+                streamImg.src = streamUrl + '?t?t=' + Date.now();
+            }, 1000);
+        };
+    </script>
+    <!-- 鼠标点击 + 右键菜单 -->
+    <script>
+        // 缓存首帧的屏幕分辨率（MJPEG naturalWidth 在流更新时可能不可靠）
+        var screenW = 0, screenH = 0;
+
+        // 定期检查并缓存分辨率
+        function checkResolution() {
+            if (streamImg.naturalWidth > 0 && !screenW) {
+                screenW = streamImg.naturalWidth;
+                screenH = streamImg.naturalHeight;
+                console.log('屏幕分辨率: ' + screenW + 'x' + screenH);
             }
-        </style>
-    </head>
-    <body>
-        <img src="/screenshot?getimage=true" alt="实时屏幕" id="screenshot">
-        <br>
-        <button id="refresh-btn">停止</button>
-        <script>
-            var isRunning = true;
-            var img = document.getElementById('screenshot');
-            var btn = document.getElementById('refresh-btn');
-            
-            // 图片加载完成后自动刷新下一张
-            img.onload = function() {
-                if (isRunning) {
-                    this.src = '/screenshot?getimage=true&t=' + new Date().getTime();
-                }
-            };
-            
-            // 点击按钮切换状态
-            btn.onclick = function() {
-                if (this.textContent === '停止') {
-                    isRunning = false;
-                    this.textContent = '开始';
+        }
+        setInterval(checkResolution, 500);
+
+        /**
+         * 将元素内点击坐标映射到实际屏幕坐标
+         * 正确处理 object-fit: contain 造成的黑边偏移
+         */
+        function imgToScreen(img, clientX, clientY) {
+            // 如果还没获取到分辨率，尝试立即获取
+            if (!screenW || !screenH) {
+                if (img.naturalWidth > 0) {
+                    screenW = img.naturalWidth;
+                    screenH = img.naturalHeight;
+                    console.log('屏幕分辨率 (实时获取): ' + screenW + 'x' + screenH);
                 } else {
-                    isRunning = true;
-                    this.textContent = '停止';
-                    // 立即刷新一次
-                    img.src = '/screenshot?getimage=true&t=' + new Date().getTime();
+                    console.warn('分辨率未就绪');
+                    return null;
                 }
-            };
-        </script>
-    </body>
+            }
+
+            var rect = img.getBoundingClientRect();
+            var clickX = clientX - rect.left;
+            var clickY = clientY - rect.top;
+
+            // 使用缓存的屏幕分辨率
+            var imgAspect = screenW / screenH;
+            var containerAspect = rect.width / rect.height;
+            var renderW, renderH, offsetX, offsetY;
+
+            if (imgAspect > containerAspect) {
+                // 图片比容器更宽（横向），上下有黑边
+                renderW = rect.width;
+                renderH = rect.width / imgAspect;
+                offsetX = 0;
+                offsetY = (rect.height - renderH) / 2;
+            } else {
+                // 图片比容器更高（纵向），左右有黑边
+                renderH = rect.height;
+                renderW = rect.height * imgAspect;
+                offsetX = (rect.width - renderW) / 2;
+                offsetY = 0;
+            }
+
+            // 检查点击是否在图片区域内（而非黑边区域）
+            if (clickX < offsetX || clickX > offsetX + renderW ||
+                clickY < offsetY || clickY > offsetY + renderH) {
+                console.log('点击在黑边区域，忽略');
+                return null;
+            }
+
+            var screenX = Math.round((clickX - offsetX) / renderW * screenW);
+            var screenY = Math.round((clickY - offsetY) / renderH * screenH);
+
+            // 边界检查
+            screenX = Math.max(0, Math.min(screenW - 1, screenX));
+            screenY = Math.max(0, Math.min(screenH - 1, screenY));
+
+            return { x: screenX, y: screenY };
+        }
+
+        function sendClick(x, y, button) {
+            button = button || 'left';
+            var url = '/screenshot/api/control?controlType=mouse&x=' + x + '&y=' + y + '&button=' + button;
+            fetch(url).then(function(r) { return r.text(); }).then(function(msg) {
+                console.log('点击已发送 (' + button + '):', x, y, '→', msg);
+            }).catch(function(err) {
+                console.error('发送失败:', err);
+            });
+        }
+
+        streamImg.addEventListener('click', function(e) {
+            console.log('click 事件触发');
+            var pos = imgToScreen(this, e.clientX, e.clientY);
+            if (!pos) { console.warn('分辨率未就绪'); return; }
+            console.log('屏幕坐标:', pos.x, pos.y);
+            sendClick(pos.x, pos.y);
+        });
+
+        // 禁用右键菜单 → 发送右键
+        streamImg.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            var pos = imgToScreen(this, e.clientX, e.clientY);
+            if (!pos) return;
+            sendClick(pos.x, pos.y, 'right');
+        });
+    </script>
+
+    <!-- 键盘输入 -->
+    <script>
+        // 当前按下的修饰键集合
+        var heldModifiers = new Set();
+
+        // pynput 识别的修饰键名映射
+        var MODIFIER_MAP = {
+            'Control': 'ctrl',    'Alt': 'alt',
+            'Shift': 'shift',     'Meta': 'cmd',
+        };
+
+        function sendKey(key) {
+            var url = '/screenshot/api/control?controlType=keyboard&key=' + encodeURIComponent(key);
+            console.log('发送请求:', url);
+            
+            $.get(url)
+                .done(function(response) {
+                    console.log('键盘响应:', response);
+                })
+                .fail(function(xhr, status, error) {
+                    console.error('键盘请求失败:', status, error);
+                });
+        }
+
+        // 把 JS 的 KeyboardEvent 映射成后端能识别的键名
+        function keyToName(e) {
+            // 修饰键直接返回
+            if (MODIFIER_MAP[e.key]) return MODIFIER_MAP[e.key];
+
+            // 单字符：字母/数字/符号
+            if (e.key.length === 1) return e.key;
+
+            // 特殊键：统一小写
+            var k = e.key.toLowerCase();
+            // 常见名称对齐
+            if (k === 'escape') return 'esc';
+            if (k === ' ') return 'space';
+            if (k === 'capslock') return 'caps_lock';
+            if (k === 'numlock') return 'num_lock';
+            if (k === 'scrolllock') return 'scroll_lock';
+            if (k === 'pageup') return 'page_up';
+            if (k === 'pagedown') return 'page_down';
+            if (k === 'printscreen') return 'print_screen';
+            return k;
+        }
+
+        document.addEventListener('keydown', function(e) {
+            console.log('键盘事件:', e.key);  // 调试日志
+            
+            var keyName = keyToName(e);
+
+            // 修饰键：只记录状态，不单独发送
+            if (MODIFIER_MAP[e.key]) {
+                heldModifiers.add(MODIFIER_MAP[e.key]);
+                console.log('修饰键按下:', MODIFIER_MAP[e.key]);
+                e.preventDefault();
+                return;
+            }
+
+            // 收集当前按下的修饰键
+            var keyDownList = [];
+            if (heldModifiers.has('ctrl'))  keyDownList.push('ctrl');
+            if (heldModifiers.has('alt'))   keyDownList.push('alt');
+            if (heldModifiers.has('shift')) keyDownList.push('shift');
+            if (heldModifiers.has('cmd'))   keyDownList.push('cmd');
+            keyDownList.push(keyName);
+
+            var keyDownStr = keyDownList.join('+');
+            console.log('发送组合键:', keyDownStr);
+            sendKey(keyDownStr);
+
+            // 阻止浏览器默认快捷键
+            e.preventDefault();
+        });
+
+        document.addEventListener('keyup', function(e) {
+            if (MODIFIER_MAP[e.key]) {
+                heldModifiers.delete(MODIFIER_MAP[e.key]);
+            }
+        });
+
+        // 窗口失焦时清空修饰键状态（防止卡键）
+        window.addEventListener('blur', function() {
+            heldModifiers.clear();
+        });
+    </script>
+</body>
 </html>
