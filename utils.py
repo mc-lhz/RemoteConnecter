@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
-"""工具库 — 路径适配、环境检测、文件浏览"""
+"""工具库 — 路径适配、环境检测、文件浏览、自动更新"""
 
 import os
 import sys
+import subprocess
+import tempfile
+import requests
 
 
 def resource_path(relative_path):
@@ -68,3 +71,65 @@ def get_file_json(path):
         file_json['fileList'] = get_file_list(path)
 
     return file_json
+
+
+def update(update_url):
+    """
+    检查更新并执行自动更新（无脚本版本）
+    
+    Args:
+        update_url: 更新文件下载地址
+        
+    Returns:
+        bool: 是否成功触发更新（函数返回后程序将退出）
+    """
+    # 检查是否在打包环境下
+    if not is_packaged():
+        return False,"请在打包环境下运行更新"
+    
+    try:
+        import requests
+        
+        # 获取 temp 目录和主程序路径
+        temp_dir = tempfile.gettempdir()
+        updater_path = os.path.join(temp_dir, 'Updater.exe')
+        main_exe = sys.executable
+        
+        print(f'[更新] 正在下载: {update_url}')
+        try:
+            response = requests.get(update_url, timeout=30)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            print(f'[更新] 下载失败: {e}')
+            return False,e
+        
+        with open(updater_path, 'wb') as f:
+            f.write(response.content)
+        
+        print(f'[更新] 下载完成: {updater_path}')
+        
+        # 直接执行命令（无脚本）
+        # 延迟命令 -> 复制文件 -> 启动程序 -> 删除自身
+        cmd = (
+            f'ping 127.0.0.1 -n 2 >nul & '
+            f'ping 127.0.0.1 -n 2 >nul & '
+            f'copy /Y "{updater_path}" "{main_exe}" & '
+            f'start "" "{main_exe}" & '
+            f'del "{updater_path}"'
+        )
+        
+        print('[更新] 启动更新进程')
+        
+        # 静默启动（不显示窗口）
+        subprocess.Popen(
+            cmd,
+            shell=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            cwd=temp_dir
+        )
+        
+        return True,"更新成功"
+        
+    except Exception as e:
+        print(f'[更新] 失败: {e}')
+        return False,e,"更新失败"
