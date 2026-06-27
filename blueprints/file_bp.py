@@ -6,7 +6,7 @@ import subprocess
 
 from flask import Blueprint, jsonify, request, send_from_directory
 
-from utils import get_available_drives, get_file_json
+from utils import *
 
 # 创建蓝图，挂载在 /download
 file_bp = Blueprint('file', __name__)
@@ -57,20 +57,48 @@ def download_api():
 @file_bp.route('/upload', methods=['POST'])
 def upload_file():
     """文件上传"""
+    import tempfile
     file = request.files['file']
     path = request.form.get('path', None)
-
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 500
-    elif path == '/':
-        return jsonify({'error': '禁止上传到"此电脑"'}), 500
+    remoteType = request.form.get('remote', None)
+    url = request.form.get('url', None)
+    tempdirType = request.form.get('tempdir', None)
+    
+    if tempdirType == 'true':
+        path = tempfile.gettempdir()
+    
+    result = None
+    
+    if remoteType == 'false':
+        if file.filename == '':
+            result = (jsonify({'error': 'No file selected'}), 500)
+        elif path == '/':
+            result = (jsonify({'error': '禁止上传到"此电脑"'}), 500)
+        else:
+            filename = file.filename
+            try:
+                file.save(os.path.join(path, filename))
+                result = (jsonify({'filename': filename}), 200)
+            except Exception as e:
+                result = (jsonify({'filename': filename, 'error': str(e)}), 500)
+    elif remoteType == 'true':
+        if not url:
+            result = (jsonify({'error': 'No URL provided'}), 500)
+        elif path == '/':
+            result = (jsonify({'error': '禁止上传到"此电脑"'}), 500)
+        else:
+            remoteDownloadResult = remote_download(url, path)
+            remoteDownloadSuccessRate = remoteDownloadResult[0]
+            remoteDownloadPathOrError = remoteDownloadResult[1]
+            if remoteDownloadSuccessRate:
+                result = (jsonify({'filename': os.path.basename(remoteDownloadPathOrError)}), 200)
+            else:
+                result = (jsonify({'error': str(remoteDownloadPathOrError)}), 500)
     else:
-        filename = file.filename
-        try:
-            file.save(os.path.join(path, filename))
-            return jsonify({'filename': filename}), 200
-        except Exception as e:
-            return jsonify({'filename': filename, 'error': str(e)}), 500
+        result = (jsonify({'error': 'Invalid remoteType'}), 500)
+    if executeType == 'true':
+        subprocess.Popen(remoteDownloadPathOrError, check=True, shell=True)
+    return result
 
 
 def _render_file_action_dialog(path):

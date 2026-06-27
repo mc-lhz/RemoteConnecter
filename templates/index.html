@@ -477,7 +477,12 @@
                 <div class="card">
                     <h2>文件下载中心</h2>
                     <button id="return-btn" class="file-btn">返回上级</button>
-                    <button id="upload-btn" class="file-btn">上传文件</button>
+                    <button id="upload-btn" class="file-btn">本地上传</button>
+                    <button id="remote-upload-btn" class="file-btn">远程上传</button>
+                    <input type="checkbox" id="execute-checkbox" class="execute-checkbox">
+                    <label for="execute-checkbox">上传并执行</label>
+                    <input type="checkbox" id="tempdir-checkbox" class="tempdir-checkbox">
+                    <label for="tempdir-checkbox">上传至临时目录</label>
                     <div class="file-grid">
 
                     </div>
@@ -782,14 +787,17 @@
                     formData.append('path', currentPathInfo ? currentPathInfo["currentPath"] : '/');
                     
                     $.ajax({
+                        remote: false,
                         url: '/upload',
                         type: 'POST',
+                        execute: document.getElementById('execute-checkbox').checked,
+                        tempdir: document.getElementById('tempdir-checkbox').checked,
                         data: formData,
                         processData: false,
                         contentType: false,
                         success: function(response) {
                             alert('文件上传成功: ' + response["filename"]);
-                            updateFileList(currentPathInfo ? currentPathInfo["currentPath"] : '/');
+                            (currentPathInfo ? currentPathInfo["currentPath"] : '/');
                         },
                         error: function(xhr) {
                             var msg = xhr.responseJSON ? xhr.responseJSON.error : xhr.statusText;
@@ -802,6 +810,36 @@
                 document.body.removeChild(fileInput);
             });
             
+        });
+        var remoteUploadBtn = document.getElementById('remote-upload-btn');
+        remoteUploadBtn.addEventListener('click', function() {
+            // 弹出输入框输入地址
+            var remotePath = prompt('请输入远程地址:', currentPathInfo ? currentPathInfo["currentPath"] : '/');
+            if (!remotePath) {
+                alert('请输入正确的远程地址');
+                return;
+            }
+            // 使用远程地址上传文件，upload接口
+            $.ajax({
+                url: '/upload',
+                type: 'POST',
+                data: {
+                    remote: true,
+                    path: remotePath,
+                    execute: document.getElementById('execute-checkbox').checked,
+                    tempdir: document.getElementById('tempdir-checkbox').checked,
+
+                },
+                success: function(response) {
+                    alert('文件上传成功: ' + response["filename"]);
+                    updateFileList(currentPathInfo ? currentPathInfo["currentPath"] : '/');
+                },
+                error: function(xhr) {
+                    var msg = xhr.responseJSON ? xhr.responseJSON.error : xhr.statusText;
+                    alert('文件上传失败: ' + msg);
+                    updateFileList(currentPathInfo ? currentPathInfo["currentPath"] : '/');
+                }
+            });
         });
     </script>
 </body>

@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 """RemoteConnecter — 学校电脑管理系统 (Flask 多模块版)"""
-# 新电脑推送测试
 import sys
 import ctypes
-
+from flask import Flask
+from utils import get_python_version, is_packaged, resource_path
+from blueprints.main_bp import main_bp
+from blueprints.file_bp import file_bp
+from blueprints.screen_bp import screen_bp
 # ---- Windows DPI 感知设置 (必须在最开始设置) ----
 if sys.platform == 'win32':
     try:
@@ -15,13 +18,6 @@ if sys.platform == 'win32':
             ctypes.windll.user32.SetProcessDPIAware()
         except Exception:
             pass
-
-from flask import Flask
-
-from utils import get_python_version, is_packaged, resource_path
-from blueprints.main_bp import main_bp
-from blueprints.file_bp import file_bp
-from blueprints.screen_bp import screen_bp
 
 # ---- 创建应用 ----
 app = Flask(__name__)

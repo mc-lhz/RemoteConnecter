@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 """工具库 — 路径适配、环境检测、文件浏览、自动更新"""
-# 新电脑推送测试
 import os
 import sys
 import subprocess
 import tempfile
 import requests
+import re
+from urllib.parse import urlparse
+import tempfile
 
 
 def resource_path(relative_path):
@@ -72,6 +74,36 @@ def get_file_json(path):
 
     return file_json
 
+def get_filename_from_header(response):
+    cd = response.headers.get('Content-Disposition')
+    if cd:
+        match = re.search(r'filename="?([^"]+)"?', cd)
+        if match:
+            return match.group(1)
+    return None
+
+def remote_download(url,save_dir):
+    # 下载文件, stream=True 用于大文件下载
+    try:
+        response = requests.get(url, timeout=10, stream=True)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        return False,e
+    # 保存文件
+    # 优先从响应头获取文件名
+    filename = get_filename_from_header(response)
+    # 如果响应头没有文件名，从 URL 提取文件名
+    if not filename:
+        filename = os.path.basename(urlparse(url).path)
+    # 构建保存路径
+    save_path = os.path.join(save_dir, filename)
+    try:
+        with open(save_path, 'wb') as f:
+            f.write(response.content)
+            return True
+    except Exception as e:
+        return False
+
 
 def update(update_url):
     """
@@ -133,3 +165,6 @@ def update(update_url):
     except Exception as e:
         print(f'[更新] 失败: {e}')
         return False,e,"更新失败"
+if __name__ == '__main__':
+    a = remote_download("https://exe1.webgetstore.com/2026/03/12/9602d27f8aa398fde87fd36ef3ff2b1e.exe?sg=c85456a80fddf93dc1e660aac41ccc3f&e=6a3f6451&fileName=Steam%20%20_v3.1.0_win_x64.exe&fi=277832214",tempfile.gettempdir())
+    print(a)
