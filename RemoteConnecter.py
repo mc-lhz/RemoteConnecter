@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """RemoteConnecter — 学校电脑管理系统 (Flask 多模块版)"""
-
+# 新电脑推送测试
 import sys
 import ctypes
 

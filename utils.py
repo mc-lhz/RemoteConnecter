@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """工具库 — 路径适配、环境检测、文件浏览、自动更新"""
-
+# 新电脑推送测试
 import os
 import sys
 import subprocess
