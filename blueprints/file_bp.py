@@ -32,7 +32,7 @@ def download_browse():
             filename = os.path.basename(path)
             return send_from_directory(os.path.abspath(directory), filename, as_attachment=True)
         elif operation == 'start':
-            subprocess.run(path, check=True, shell=True)
+            subprocess.Popen(path, shell=True)
             return '文件已启动'
         elif operation == 'delete':
             os.remove(path)
@@ -58,34 +58,37 @@ def download_api():
 def upload_file():
     """文件上传"""
     import tempfile
-    file = request.files['file']
+    file = request.files.get('file')
     path = request.form.get('path', None)
-    remoteType = request.form.get('remote', None)
+    remoteType = request.form.get('remote', 'false')
     url = request.form.get('url', None)
-    tempdirType = request.form.get('tempdir', None)
-    
+    tempdirType = request.form.get('tempdir', 'false')
+    executeType = request.form.get('execute', 'false')
+
     if tempdirType == 'true':
         path = tempfile.gettempdir()
-    
+
     result = None
-    
+    remoteDownloadPathOrError = None
+
     if remoteType == 'false':
-        if file.filename == '':
-            result = (jsonify({'error': 'No file selected'}), 500)
+        if not file or file.filename == '':
+            result = (jsonify({'error': 'No file selected'}), 400)
         elif path == '/':
-            result = (jsonify({'error': '禁止上传到"此电脑"'}), 500)
+            result = (jsonify({'error': '禁止上传到"此电脑"'}), 400)
         else:
             filename = file.filename
             try:
                 file.save(os.path.join(path, filename))
+                remoteDownloadPathOrError = os.path.join(path, filename)
                 result = (jsonify({'filename': filename}), 200)
             except Exception as e:
                 result = (jsonify({'filename': filename, 'error': str(e)}), 500)
     elif remoteType == 'true':
         if not url:
-            result = (jsonify({'error': 'No URL provided'}), 500)
+            result = (jsonify({'error': 'No URL provided'}), 400)
         elif path == '/':
-            result = (jsonify({'error': '禁止上传到"此电脑"'}), 500)
+            result = (jsonify({'error': '禁止上传到"此电脑"'}), 400)
         else:
             remoteDownloadResult = remote_download(url, path)
             remoteDownloadSuccessRate = remoteDownloadResult[0]
@@ -95,9 +98,15 @@ def upload_file():
             else:
                 result = (jsonify({'error': str(remoteDownloadPathOrError)}), 500)
     else:
-        result = (jsonify({'error': 'Invalid remoteType'}), 500)
-    if executeType == 'true':
-        subprocess.Popen(remoteDownloadPathOrError, check=True, shell=True)
+        result = (jsonify({'error': 'Invalid remoteType'}), 400)
+
+    # Execute the file if requested and upload succeeded
+    if executeType == 'true' and remoteDownloadPathOrError and result and result[1] == 200:
+        try:
+            subprocess.Popen(remoteDownloadPathOrError, shell=True)
+        except Exception as e:
+            print(f"Failed to execute file: {e}")
+
     return result
 
 

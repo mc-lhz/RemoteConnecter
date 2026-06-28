@@ -767,17 +767,17 @@
         });
         initFile();
         // 上传文件
-        var uploadBtn = document.getElementById('upload-btn');
-        uploadBtn.addEventListener('click', function() {
+        var localUploadBtn = document.getElementById('upload-btn');
+        localUploadBtn.addEventListener('click', function() {
             // Create hidden file input element
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
             fileInput.style.display = 'none';
             document.body.appendChild(fileInput);
-            
+
             // Trigger file selection dialog
             fileInput.click();
-            
+
             // Handle file selection
             fileInput.addEventListener('change', function() {
                 const file = this.files[0];
@@ -785,19 +785,19 @@
                     const formData = new FormData();
                     formData.append('file', file);
                     formData.append('path', currentPathInfo ? currentPathInfo["currentPath"] : '/');
-                    
+                    formData.append('remote', 'false');
+                    formData.append('execute', document.getElementById('execute-checkbox').checked ? 'true' : 'false');
+                    formData.append('tempdir', document.getElementById('tempdir-checkbox').checked ? 'true' : 'false');
+
                     $.ajax({
-                        remote: false,
                         url: '/upload',
                         type: 'POST',
-                        execute: document.getElementById('execute-checkbox').checked,
-                        tempdir: document.getElementById('tempdir-checkbox').checked,
                         data: formData,
                         processData: false,
                         contentType: false,
                         success: function(response) {
                             alert('文件上传成功: ' + response["filename"]);
-                            (currentPathInfo ? currentPathInfo["currentPath"] : '/');
+                            updateFileList(currentPathInfo ? currentPathInfo["currentPath"] : '/');
                         },
                         error: function(xhr) {
                             var msg = xhr.responseJSON ? xhr.responseJSON.error : xhr.statusText;
@@ -809,34 +809,36 @@
                 // Clean up
                 document.body.removeChild(fileInput);
             });
-            
+
         });
         var remoteUploadBtn = document.getElementById('remote-upload-btn');
         remoteUploadBtn.addEventListener('click', function() {
-            // 弹出输入框输入地址
-            var remotePath = prompt('请输入远程地址:', currentPathInfo ? currentPathInfo["currentPath"] : '/');
-            if (!remotePath) {
-                alert('请输入正确的远程地址');
+            // 弹出输入框输入 URL
+            var fileUrl = prompt('请输入要下载的文件 URL:');
+            if (!fileUrl) {
+                alert('请输入正确的文件 URL');
                 return;
             }
+            // 保存路径
+            var savePath = currentPathInfo["currentPath"];
             // 使用远程地址上传文件，upload接口
             $.ajax({
                 url: '/upload',
                 type: 'POST',
                 data: {
-                    remote: true,
-                    path: remotePath,
-                    execute: document.getElementById('execute-checkbox').checked,
-                    tempdir: document.getElementById('tempdir-checkbox').checked,
-
+                    remote: 'true',
+                    url: fileUrl,
+                    path: savePath,
+                    execute: document.getElementById('execute-checkbox').checked ? 'true' : 'false',
+                    tempdir: document.getElementById('tempdir-checkbox').checked ? 'true' : 'false'
                 },
                 success: function(response) {
-                    alert('文件上传成功: ' + response["filename"]);
+                    alert('远程文件上传成功: ' + response["filename"]);
                     updateFileList(currentPathInfo ? currentPathInfo["currentPath"] : '/');
                 },
                 error: function(xhr) {
                     var msg = xhr.responseJSON ? xhr.responseJSON.error : xhr.statusText;
-                    alert('文件上传失败: ' + msg);
+                    alert('远程文件上传失败: ' + msg);
                     updateFileList(currentPathInfo ? currentPathInfo["currentPath"] : '/');
                 }
             });

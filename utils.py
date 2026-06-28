@@ -82,13 +82,11 @@ def get_filename_from_header(response):
             return match.group(1)
     return None
 
-def remote_download(url,save_dir):
+def remote_download(url, save_dir):
     # 下载文件, stream=True 用于大文件下载
-    try:
-        response = requests.get(url, timeout=10, stream=True)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        return False,e
+
+    response = requests.get(url, timeout=10, stream=True, verify=False,  proxies={'http': None, 'https': None})
+    response.raise_for_status()
     # 保存文件
     # 优先从响应头获取文件名
     filename = get_filename_from_header(response)
@@ -100,9 +98,9 @@ def remote_download(url,save_dir):
     try:
         with open(save_path, 'wb') as f:
             f.write(response.content)
-            return True
+            return True, save_path
     except Exception as e:
-        return False
+        return False, str(e)
 
 
 def update(update_url):
