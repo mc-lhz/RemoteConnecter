@@ -7,7 +7,7 @@ import subprocess
 
 import psutil
 from flask import Blueprint, render_template, request
-
+from utils import *
 # 创建蓝图，挂载在根路径
 main_bp = Blueprint('main', __name__)
 
@@ -17,14 +17,16 @@ def index():
     """首页 — 显示系统信息概览"""
     pc_name = platform.node()
     user_name = os.getlogin()
-    hardware = platform.processor()
+    # hardware = platform.processor()
+    python_version = get_python_version()
     os_version = platform.system() + ' ' + platform.release()
-
+    software_version = get_version()
+    
     mem = psutil.virtual_memory()
     memory = f'{mem.percent}%   可用: {mem.available}'
-
-    disk_usage = psutil.disk_usage('/')
-    disk = f'{disk_usage.percent}%   可用: {disk_usage.free}   总计: {disk_usage.total}'
+    
+    # disk_usage = psutil.disk_usage('/')
+    # disk = f'{disk_usage.percent}%   可用: {disk_usage.free}   总计: {disk_usage.total}'
 
     ip_list = [
         addr.address
@@ -38,11 +40,11 @@ def index():
         'index.html',
         pcName=pc_name,
         userName=user_name,
-        hardWare=hardware,
+        pythonVersion=python_version,
         osVersion=os_version,
+        softwareVersion=software_version,
         ip=ip_string,
         memory=memory,
-        disk=disk,
     )
 
 

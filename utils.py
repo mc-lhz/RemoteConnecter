@@ -9,6 +9,11 @@ import re
 from urllib.parse import urlparse
 import tempfile
 
+VERSION = 'v1.1'
+
+def get_version():
+    return VERSION
+
 
 def resource_path(relative_path):
     """获取资源的绝对路径，兼容 PyInstaller 打包"""

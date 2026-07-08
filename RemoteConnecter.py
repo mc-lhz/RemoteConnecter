@@ -18,7 +18,8 @@ if sys.platform == 'win32':
             ctypes.windll.user32.SetProcessDPIAware()
         except Exception:
             pass
-
+def get_version():
+    return VERSION
 # ---- 创建应用 ----
 app = Flask(__name__)
 app.template_folder = resource_path('templates')
@@ -33,4 +34,4 @@ app.register_blueprint(screen_bp)     # 屏幕截图 / 推流 / 远程控制
 if __name__ == '__main__':
     print(get_python_version())
     print(is_packaged())
-    app.run(host='0.0.0.0', port=80, debug=True, use_reloader=False)
+    app.run(host='0.0.0.0', port=80, debug=True, use_reloader=True)
