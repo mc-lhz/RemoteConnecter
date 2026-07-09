@@ -3,10 +3,11 @@
 import sys
 import ctypes
 from flask import Flask
-from utils import get_python_version, is_packaged, resource_path
+from utils import *
 from blueprints.main_bp import main_bp
 from blueprints.file_bp import file_bp
 from blueprints.screen_bp import screen_bp
+from blueprints.update_bp import update_bp
 # ---- Windows DPI 感知设置 (必须在最开始设置) ----
 if sys.platform == 'win32':
     try:
@@ -29,9 +30,9 @@ app.static_folder = resource_path('static')
 app.register_blueprint(main_bp)       # 主页 & 终端
 app.register_blueprint(file_bp)       # 文件浏览 / 下载 / 上传
 app.register_blueprint(screen_bp)     # 屏幕截图 / 推流 / 远程控制
+app.register_blueprint(update_bp)     # 更新管理
 
 # ---- 启动 ----
 if __name__ == '__main__':
     print(get_python_version())
-    print(is_packaged())
     app.run(host='0.0.0.0', port=80, debug=True, use_reloader=True)

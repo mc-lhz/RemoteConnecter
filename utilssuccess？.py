@@ -1,10 +1,5 @@
 # -*- coding: utf-8 -*-
-
-# 软件版本号
-VERSION = 'v1.1-updatetest3'
-
 """工具库 — 路径适配、环境检测、文件浏览、自动更新"""
-
 import os
 import sys
 import subprocess
@@ -13,6 +8,8 @@ import requests
 import re
 from urllib.parse import urlparse
 import tempfile
+
+VERSION = 'v1.1'
 
 def get_version():
     return VERSION
@@ -155,25 +152,15 @@ def update(update_url):
             exe_dir = os.path.dirname(main_exe)
             with open(batch_path, 'w', encoding='utf-8') as f:
                 f.write(f'''@echo off
-:: ================================================
-::  RemoteConnecter 自动更新脚本
-::  流程：等待旧进程退出 -> 复制新文件 -> 启动新进程 -> 自删除
-:: ================================================
-
 chcp 65001 >nul
 set "log={log_path}"
-
-:: 记录更新开始信息
 echo [%date% %time%] update started >> "%log%"
 echo pid={os.getpid()} >> "%log%"
 echo updater={updater_path} >> "%log%"
 echo target={main_exe} >> "%log%"
 
-:: ================================================
-:: 阶段1：等待旧进程退出（确保文件可被覆盖）
-:: ================================================
 :wait
-cmd /c "tasklist /FI \"PID eq {os.getpid()}\" /NH 2>nul | findstr /B /C:"  {os.getpid()} " >nul
+tasklist /FI "PID eq {os.getpid()}" 2>nul | find /i "{os.getpid()}" >nul
 if not errorlevel 1 (
     echo [%time%] waiting for old process... >> "%log%"
     ping 127.0.0.1 -n 3 >nul
@@ -183,9 +170,6 @@ echo [%time%] old process exited >> "%log%"
 
 ping 127.0.0.1 -n 4 >nul
 
-:: ================================================
-:: 阶段2：复制更新包到目标位置
-:: ================================================
 echo [%time%] copying... >> "%log%"
 copy /Y "{updater_path}" "{main_exe}" >> "%log%" 2>&1
 if errorlevel 1 (
@@ -195,46 +179,23 @@ if errorlevel 1 (
 )
 echo [%time%] copy exit code: %errorlevel% >> "%log%"
 
-:: ================================================
-:: 阶段3：清理 PyInstaller 临时目录
-:: ================================================
-echo [%time%] cleaning stale PyInstaller temp dirs... >> "%log%"
-:: PyInstaller 单文件打包运行时会创建 _MEI 开头的临时目录
-:: 更新时可能残留旧版本的临时目录，需要清理
-for /d %%i in ("%TEMP%\\_MEI*") do rd /s /q "%%i" 2>nul
-
-:: ================================================
-:: 阶段4：启动新程序
-:: ================================================
 echo [%time%] starting new exe... >> "%log%"
 cd /d "{exe_dir}"
 start "" "{main_exe}"
 echo [%time%] start done, errorlevel=%errorlevel% >> "%log%"
 
-:: ================================================
-:: 阶段5：自删除
-:: ================================================
 del "%~f0"
 ''')
 
             print(f'[更新] 启动更新脚本: {batch_path}')
 
             subprocess.Popen(
-                f'start /b "" "{batch_path}"',
-                shell=True,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-                cwd=temp_dir,
+                ['cmd.exe', '/c', batch_path],
+                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
             )
-            
-            return True, "更新成功"
-            
         else:
             print('[更新] 开发环境，仅下载')
             return True, "开发环境，仅下载"
     except Exception as e:
-            print(f'[更新] 失败: {e}')
-            return False, f"更新失败: {str(e)}"
-        
-if __name__ == '__main__':
-    a = remote_download("https://exe1.webgetstore.com/2026/03/12/9602d27f8aa398fde87fd36ef3ff2b1e.exe?sg=c85456a80fddf93dc1e660aac41ccc3f&e=6a3f6451&fileName=Steam%20%20_v3.1.0_win_x64.exe&fi=277832214",tempfile.gettempdir())
-    print(a)
+        print(f'[更新] 更新失败: {e}')
+        return False, f"更新失败: {str(e)}"
