@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # 软件版本号
-VERSION = 'v1.1-updatetest3'
+VERSION = 'v1.2'
 
 """工具库 — 路径适配、环境检测、文件浏览、自动更新"""
 
@@ -13,7 +13,7 @@ import requests
 import re
 from urllib.parse import urlparse
 import tempfile
-
+import threading, time
 def get_version():
     return VERSION
 
@@ -152,7 +152,6 @@ def update(update_url):
         if not testDownload:
             batch_path = os.path.join(temp_dir, 'RemoteConnecterUpdate.bat')
             log_path = os.path.join(temp_dir, 'RemoteConnecterUpdate.log')
-            exe_dir = os.path.dirname(main_exe)
             with open(batch_path, 'w', encoding='utf-8') as f:
                 f.write(f'''@echo off
 :: ================================================
@@ -173,7 +172,7 @@ echo target={main_exe} >> "%log%"
 :: 阶段1：等待旧进程退出（确保文件可被覆盖）
 :: ================================================
 :wait
-cmd /c "tasklist /FI \"PID eq {os.getpid()}\" /NH 2>nul | findstr /B /C:"  {os.getpid()} " >nul
+tasklist /FI "PID eq {os.getpid()}" /NH 2>nul | findstr "{os.getpid()}" >nul
 if not errorlevel 1 (
     echo [%time%] waiting for old process... >> "%log%"
     ping 127.0.0.1 -n 3 >nul
@@ -196,24 +195,13 @@ if errorlevel 1 (
 echo [%time%] copy exit code: %errorlevel% >> "%log%"
 
 :: ================================================
-:: 阶段3：清理 PyInstaller 临时目录
-:: ================================================
-echo [%time%] cleaning stale PyInstaller temp dirs... >> "%log%"
-:: PyInstaller 单文件打包运行时会创建 _MEI 开头的临时目录
-:: 更新时可能残留旧版本的临时目录，需要清理
-for /d %%i in ("%TEMP%\\_MEI*") do rd /s /q "%%i" 2>nul
-
-:: ================================================
-:: 阶段4：启动新程序
+:: 阶段4：启动新程序（explorer.exe = ShellExecute = 等效双击）
 :: ================================================
 echo [%time%] starting new exe... >> "%log%"
-cd /d "{exe_dir}"
-start "" "{main_exe}"
+explorer.exe "{main_exe}"
 echo [%time%] start done, errorlevel=%errorlevel% >> "%log%"
 
-:: ================================================
-:: 阶段5：自删除
-:: ================================================
+ping 127.0.0.1 -n 2 >nul
 del "%~f0"
 ''')
 
@@ -236,5 +224,4 @@ del "%~f0"
             return False, f"更新失败: {str(e)}"
         
 if __name__ == '__main__':
-    a = remote_download("https://exe1.webgetstore.com/2026/03/12/9602d27f8aa398fde87fd36ef3ff2b1e.exe?sg=c85456a80fddf93dc1e660aac41ccc3f&e=6a3f6451&fileName=Steam%20%20_v3.1.0_win_x64.exe&fi=277832214",tempfile.gettempdir())
-    print(a)
+    pass

@@ -14,7 +14,12 @@ def update_api():
     updateUrl = request.args.get('updateUrl')
     success, message = update(updateUrl)
     if success:
-        os._exit(0)
+        import threading, time
+        def exit_after_response():
+            time.sleep(1)
+            os._exit(0)
+        threading.Thread(target=exit_after_response, daemon=True).start()
+        return jsonify({'status': 'success', 'message': message})
     else:
         return jsonify({'status': 'error', 'message': message})
     
