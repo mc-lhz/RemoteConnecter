@@ -17,7 +17,7 @@ screen_bp = Blueprint('screen', __name__)
 mouseController = MouseController()
 keyboardController = KeyboardController()
 
-SPECIAL_KEYS = {
+specialKeys = {
     # ---- 导航键 ----
     'enter': Key.enter,       'space': Key.space,       'tab': Key.tab,
     'backspace': Key.backspace, 'delete': Key.delete,   'esc': Key.esc,
@@ -51,7 +51,7 @@ SPECIAL_KEYS = {
 }
 
 # 修饰键映射（用于组合键解析，如 ctrl+c）
-MODIFIER_KEYS = {
+modifierKeys = {
     'ctrl': Key.ctrl,       'ctrl_l': Key.ctrl_l,     'ctrl_r': Key.ctrl_r,
     'alt': Key.alt,         'alt_l': Key.alt_l,       'alt_r': Key.alt_r,
     'shift': Key.shift,     'shift_l': Key.shift_l,   'shift_r': Key.shift_r,
@@ -60,38 +60,39 @@ MODIFIER_KEYS = {
 
 
 @screen_bp.route('/screenshot')
-def screenshot_page():
+def screenshotPage():
     """实时屏幕页面"""
     return render_template('screenshot.html')
 
 
 @screen_bp.route('/screenshot/api/stream')
-def screenshot_stream():
+def screenshotStream():
     """MJPEG 实时屏幕流 (约 10 FPS)"""
-    def generate_frames():
+
+    def generateFrames():
         while True:
             screenshot = ImageGrab.grab()
-            img_io = io.BytesIO()
-            screenshot.save(img_io, 'JPEG', quality=80)
-            frame_data = img_io.getvalue()
+            imgIo = io.BytesIO()
+            screenshot.save(imgIo, 'JPEG', quality=80)
+            frameData = imgIo.getvalue()
 
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n'
-                   b'Content-Length: %d\r\n\r\n' % len(frame_data))
-            yield frame_data
+                   b'Content-Length: %d\r\n\r\n' % len(frameData))
+            yield frameData
             yield b'\r\n'
 
             time.sleep(0.05)
 
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(generateFrames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 @screen_bp.route('/screenshot/api/control')
-def screenshot_control():
+def screenshotControl():
     """远程控制 API — 鼠标点击 & 键盘输入（支持组合键如 ctrl+c）"""
-    control_type = request.args.get('controlType', None)
+    controlType = request.args.get('controlType', None)
 
-    if control_type == 'mouse':
+    if controlType == 'mouse':
         # 鼠标点击：根据请求参数设置坐标和按钮
         x = request.args.get('x', None)
         y = request.args.get('y', None)
@@ -101,31 +102,31 @@ def screenshot_control():
             mouseController.click(button, 1)
             return '鼠标点击成功'
 
-    elif control_type == 'keyboard':
-        keyStr = request.args.get('key', None)
-        if keyStr:
-            print(f'[键盘] 收到按键: {keyStr}')
-            
+    elif controlType == 'keyboard':
+        keyString = request.args.get('key', None)
+        if keyString:
+            print(f'[键盘] 收到按键: {keyString}')
+
             # 解析组合键：ctrl+c → ['ctrl','c']；shift+enter → ['shift','enter']
-            keyList = keyStr.lower().split('+')
+            keyList = keyString.lower().split('+')
             modifiers = []   # 记录已按下的修饰键，最后逆序释放
 
             try:
                 for key in keyList:
                     # 移除首尾空格
-                    key = key.strip()  
+                    key = key.strip()
                     if not key:
                         continue
-                    if key in MODIFIER_KEYS:
+                    if key in modifierKeys:
                         # 修饰键：先按下
                         print(f'  按下修饰键: {key}')
-                        keyboardController.press(MODIFIER_KEYS[key])
-                        modifiers.append(MODIFIER_KEYS[key])
-                    elif key in SPECIAL_KEYS:
+                        keyboardController.press(modifierKeys[key])
+                        modifiers.append(modifierKeys[key])
+                    elif key in specialKeys:
                         # 特殊键：按下 + 释放
                         print(f'  按下特殊键: {key}')
-                        keyboardController.press(SPECIAL_KEYS[key])
-                        keyboardController.release(SPECIAL_KEYS[key])  
+                        keyboardController.press(specialKeys[key])
+                        keyboardController.release(specialKeys[key])
                     else:
                         # 普通字符
                         print(f'  按下普通键: {key}')

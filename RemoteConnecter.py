@@ -19,12 +19,11 @@ if sys.platform == 'win32':
             ctypes.windll.user32.SetProcessDPIAware()
         except Exception:
             pass
-def get_version():
-    return VERSION
+
 # ---- 创建应用 ----
 app = Flask(__name__)
-app.template_folder = resource_path('templates')
-app.static_folder = resource_path('static')
+app.template_folder = resourcePath('templates')
+app.static_folder = resourcePath('static')
 
 # ---- 注册蓝图 ----
 app.register_blueprint(main_bp)       # 主页 & 终端
@@ -34,5 +33,5 @@ app.register_blueprint(update_bp)     # 更新管理
 
 # ---- 启动 ----
 if __name__ == '__main__':
-    print(get_python_version())
+    print(getPythonVersion())
     app.run(host='0.0.0.0', port=80, debug=True, use_reloader=True)

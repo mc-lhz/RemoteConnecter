@@ -3,7 +3,7 @@
 
 import os
 import subprocess
-
+import tempfile
 from flask import Blueprint, jsonify, request, send_from_directory
 
 from utils import *
@@ -13,12 +13,12 @@ file_bp = Blueprint('file', __name__)
 
 
 @file_bp.route('/download')
-def download_browse():
+def downloadBrowse():
     """浏览文件系统 — 列表页"""
     path = request.args.get('path', None)
 
     if not path:
-        drives = get_available_drives()
+        drives = getAvailableDrives()
         html = '<h1>选择磁盘</h1><ul>'
         for drive in drives:
             html += f'<li><a href="/download?path={drive}" target="_blank">{drive}</a></li>'
@@ -29,8 +29,8 @@ def download_browse():
         operation = request.args.get('operation', None)
         if operation == 'download':
             directory = os.path.dirname(path)
-            filename = os.path.basename(path)
-            return send_from_directory(os.path.abspath(directory), filename, as_attachment=True)
+            fileName = os.path.basename(path)
+            return send_from_directory(os.path.abspath(directory), fileName, as_attachment=True)
         elif operation == 'start':
             subprocess.Popen(path, shell=True)
             return '文件已启动'
@@ -38,34 +38,33 @@ def download_browse():
             os.remove(path)
             return '文件已删除'
         else:
-            return _render_file_action_dialog(path)
+            return renderFileActionDialog(path)
 
     elif os.path.isdir(path):
-        return _render_directory_listing(path)
+        return renderDirectoryListing(path)
 
     else:
         return f'路径不存在: {path}'
 
 
 @file_bp.route('/download/api')
-def download_api():
+def downloadApi():
     """文件浏览 JSON API"""
     path = request.args.get('path', None)
-    return jsonify(get_file_json(path))
+    return jsonify(getFileJson(path))
 
 
 @file_bp.route('/upload', methods=['POST'])
-def upload_file():
+def uploadFile():
     """文件上传"""
-    import tempfile
     file = request.files.get('file')
     path = request.form.get('path', None)
     remoteType = request.form.get('remote', 'false')
     url = request.form.get('url', None)
-    tempdirType = request.form.get('tempdir', 'false')
+    tempDirType = request.form.get('tempdir', 'false')
     executeType = request.form.get('execute', 'false')
 
-    if tempdirType == 'true':
+    if tempDirType == 'true':
         path = tempfile.gettempdir()
 
     result = None
@@ -77,20 +76,20 @@ def upload_file():
         elif path == '/':
             result = (jsonify({'error': '禁止上传到"此电脑"'}), 400)
         else:
-            filename = file.filename
+            fileName = file.filename
             try:
-                file.save(os.path.join(path, filename))
-                remoteDownloadPathOrError = os.path.join(path, filename)
-                result = (jsonify({'filename': filename}), 200)
+                file.save(os.path.join(path, fileName))
+                remoteDownloadPathOrError = os.path.join(path, fileName)
+                result = (jsonify({'filename': fileName}), 200)
             except Exception as e:
-                result = (jsonify({'filename': filename, 'error': str(e)}), 500)
+                result = (jsonify({'filename': fileName, 'error': str(e)}), 500)
     elif remoteType == 'true':
         if not url:
             result = (jsonify({'error': 'No URL provided'}), 400)
         elif path == '/':
             result = (jsonify({'error': '禁止上传到"此电脑"'}), 400)
         else:
-            remoteDownloadResult = remote_download(url, path)
+            remoteDownloadResult = remoteDownload(url, path)
             remoteDownloadSuccessRate = remoteDownloadResult[0]
             remoteDownloadPathOrError = remoteDownloadResult[1]
             if remoteDownloadSuccessRate:
@@ -110,9 +109,9 @@ def upload_file():
     return result
 
 
-def _render_file_action_dialog(path):
+def renderFileActionDialog(path):
     """渲染文件操作对话框（下载/启动/删除）"""
-    basename = os.path.basename(path)
+    baseName = os.path.basename(path)
     return f'''<!DOCTYPE html>
 <html>
 <head>
@@ -124,7 +123,7 @@ def _render_file_action_dialog(path):
 </head>
 <body>
     <div id="dialog" title="选择操作">
-        <p>请选择对文件 "{basename}" 的操作：</p>
+        <p>请选择对文件 "{baseName}" 的操作：</p>
     </div>
     <script>
     $(function() {{
@@ -141,7 +140,7 @@ def _render_file_action_dialog(path):
                     window.location.href = String.raw`/download?path={path}&operation=start`;
                 }},
                 "删除": function() {{
-                    if (confirm("确定删除文件 {basename} 吗？")) {{
+                    if (confirm("确定删除文件 {baseName} 吗？")) {{
                         $(this).dialog("close");
                         window.location.href = String.raw`/download?path={path}&operation=delete`;
                     }}
@@ -157,10 +156,10 @@ def _render_file_action_dialog(path):
 </html>'''
 
 
-def _render_directory_listing(path):
+def renderDirectoryListing(path):
     """渲染目录内容列表"""
-    file_json = get_file_json(path)
-    file_list = file_json['fileList']
+    fileJson = getFileJson(path)
+    fileList = fileJson['fileList']
     parent = os.path.dirname(path)
 
     html = f'<h1>{path}</h1>'
@@ -170,13 +169,13 @@ def _render_directory_listing(path):
     if parent and parent != path:
         html += f'<li><a href="/download?path={parent}" target="_blank">..</a></li>'
 
-    for item in file_list:
-        full_path = item['path']
+    for item in fileList:
+        fullPath = item['path']
         name = item['name']
         if item['type'] == 'folder':
-            html += f'<li><a href="/download?path={full_path}" target="_blank" style="color:#00F;">{name}</a></li>'
+            html += f'<li><a href="/download?path={fullPath}" target="_blank" style="color:#00F;">{name}</a></li>'
         else:
-            html += f'<li><a href="/download?path={full_path}" target="_blank" style="color:#F00;">{name}</a></li>'
+            html += f'<li><a href="/download?path={fullPath}" target="_blank" style="color:#F00;">{name}</a></li>'
 
     html += '</ul>'
     return html

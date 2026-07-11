@@ -16,13 +16,29 @@
             font-size: 1.5rem;
             margin-bottom: 24px;
         }
-        #update-container {
-            max-width: 400px;
-            margin: 0 auto;
+        #update-wrapper {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
         }
-        input {
+        #remote-update-container,
+        #local-update-container {
+            flex: 1;
+            min-width: 280px;
+            max-width: 400px;
+        }
+        input[type="url"] {
             width: 100%;
             padding: 10px 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+        }
+        input[type="file"] {
+            width: 100%;
+            padding: 8px 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
             font-size: 0.9rem;
@@ -42,27 +58,86 @@
         button:hover {
             background: #555;
         }
-        #update-message {
-            margin-top: 12px;
-            font-size: 0.9rem;
-            color: #333;
+        button:disabled {
+            background: #999;
+            cursor: not-allowed;
         }
-        #reconnect-message {
-            text-align: center;
-            margin-top: 18px;
+        /* ===== 更新消息提示框 ===== */
+        #remote-update-message,
+        #local-update-message {
+            margin-top: 12px;
+            padding: 10px 14px;
+            border-radius: 4px;
             font-size: 0.85rem;
-            color: #666;
+            text-align: left;
+            display: none;
+        }
+        #remote-update-message.success,
+        #local-update-message.success {
+            display: block;
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        #remote-update-message.error,
+        #local-update-message.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        #remote-update-message.info,
+        #local-update-message.info {
+            display: block;
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        /* ===== 重连消息框（统一样式，位于底部） ===== */
+        #reconnect-message {
+            margin: 24px auto 0;
+            max-width: 840px;
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            text-align: center;
+            display: none;
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        #reconnect-message.success {
+            display: block;
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        #reconnect-message.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
         }
     </style>
 </head>
 <body>
     <h1>软件更新</h1>
-    <div id="update-container">
-        <input id="update-url" type="url" name="updateUrl" placeholder="https://example.com/update.exe" value="">
-        <button id="update-btn" type="button">开始更新</button>
-        <div id="update-message"></div>
-        <div id="reconnect-message"></div>
+    <div id="update-wrapper">
+        <div id="remote-update-container">
+            <h3>远程更新</h3>
+            <input id="update-url" type="url" name="updateUrl" placeholder="https://example.com/update.exe" value="">
+            <button id="remote-update-btn" type="button">开始更新</button>
+            <div id="remote-update-message"></div>
+        </div>
+        <div id="local-update-container">
+            <h3>本地更新</h3>
+            <input id="update-file" type="file" name="updateFile" accept=".exe">
+            <button id="local-update-btn" type="button">开始更新</button>
+            <div id="local-update-message"></div>
+        </div>
     </div>
+    <!-- 统一重连消息框，位于更新区域下方 -->
+    <div id="reconnect-message"></div>
     <script src="/static/jquery.js"></script>
     <script src="/static/update-api.js"></script>
 </body>

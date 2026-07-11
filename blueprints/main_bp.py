@@ -8,6 +8,8 @@ import subprocess
 import psutil
 from flask import Blueprint, render_template, request
 from utils import *
+
+
 # 创建蓝图，挂载在根路径
 main_bp = Blueprint('main', __name__)
 
@@ -15,41 +17,37 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/')
 def index():
     """首页 — 显示系统信息概览"""
-    pc_name = platform.node()
-    user_name = os.getlogin()
-    # hardware = platform.processor()
-    python_version = get_python_version()
-    os_version = platform.system() + ' ' + platform.release()
-    software_version = get_version()
-    
+    pcName = platform.node()
+    userName = os.getlogin()
+    pythonVersion = getPythonVersion()
+    osVersion = platform.system() + ' ' + platform.release()
+    softwareVersion = getVersion()
+
     mem = psutil.virtual_memory()
     memory = f'{mem.percent}%   可用: {mem.available}'
-    
-    # disk_usage = psutil.disk_usage('/')
-    # disk = f'{disk_usage.percent}%   可用: {disk_usage.free}   总计: {disk_usage.total}'
 
-    ip_list = [
+    ipList = [
         addr.address
         for interface, addrs in psutil.net_if_addrs().items()
         for addr in addrs
         if addr.family.name == 'AF_INET'
     ]
-    ip_string = '\n'.join(ip_list)
+    ipString = '\n'.join(ipList)
 
     return render_template(
         'index.html',
-        pcName=pc_name,
-        userName=user_name,
-        pythonVersion=python_version,
-        osVersion=os_version,
-        softwareVersion=software_version,
-        ip=ip_string,
+        pcName=pcName,
+        userName=userName,
+        pythonVersion=pythonVersion,
+        osVersion=osVersion,
+        softwareVersion=softwareVersion,
+        ip=ipString,
         memory=memory,
     )
 
 
 @main_bp.route('/terminal', methods=['POST'])
-def execute_command():
+def executeCommand():
     """执行终端命令"""
     command = request.form.get('cmd')
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
