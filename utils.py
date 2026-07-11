@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # 软件版本号
-VERSION = 'v1.2'
+VERSION = 'v1.3-beta1'
 
 """工具库 — 路径适配、环境检测、文件浏览、自动更新"""
 
@@ -257,6 +257,7 @@ def remoteUpdate(updateUrl):
     except Exception as e:
         print(f'[更新] 失败: {e}')
         return False, f"更新失败: {str(e)}"
+
 
 
 if __name__ == '__main__':

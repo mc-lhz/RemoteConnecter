@@ -4,6 +4,7 @@ import sys
 import ctypes
 from flask import Flask
 from utils import *
+from blueprints.bilimusic_bp import bilimusic_bp
 from blueprints.main_bp import main_bp
 from blueprints.file_bp import file_bp
 from blueprints.screen_bp import screen_bp
@@ -30,7 +31,7 @@ app.register_blueprint(main_bp)       # 主页 & 终端
 app.register_blueprint(file_bp)       # 文件浏览 / 下载 / 上传
 app.register_blueprint(screen_bp)     # 屏幕截图 / 推流 / 远程控制
 app.register_blueprint(update_bp)     # 更新管理
-
+app.register_blueprint(bilimusic_bp)  # B 站视频搜索 / 下载音频
 # ---- 启动 ----
 if __name__ == '__main__':
     print(getPythonVersion())

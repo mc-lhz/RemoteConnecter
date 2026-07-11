@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bilimusic 播放器</title>
+    <style>
+        /* ===== 全局重置 ===== */
+        html, body {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: transparent !important;
+            min-height: 100%;
+            height: auto;
+        }
+
+        body {
+            display: flex;
+            justify-content: flex-end;
+            align-items: flex-start;
+        }
+
+        /* ===== 悬浮窗 ===== */
+        #bilimusic-widget {
+            width: 340px;
+            background: linear-gradient(145deg, #ffe6f0, #fcc9e0);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(255, 105, 180, 0.3), 0 4px 12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            z-index: 9999;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        #bilimusic-widget.collapsed {
+            height: 56px;
+        }
+
+        #bilimusic-widget:not(.collapsed) {
+            height: 520px;
+            overflow: hidden;
+        }
+
+        /* ===== 标题栏 ===== */
+        #widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 18px;
+            background: rgba(255, 255, 255, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        #widget-header:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        #widget-header .title {
+            font-weight: 600;
+            color: #7a2e5a;
+            font-size: 18px;
+            letter-spacing: 0.5px;
+            text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+        }
+
+        #toggle-icon {
+            font-size: 20px;
+            color: #9b4b7a;
+            transition: transform 0.3s;
+        }
+
+        #bilimusic-widget.collapsed #toggle-icon {
+            transform: rotate(0deg);
+        }
+
+        #bilimusic-widget:not(.collapsed) #toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        /* ===== 内容区域 ===== */
+        #widget-body {
+            padding: 16px 18px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        /* 搜索 */
+        .search-area {
+            display: flex;
+            gap: 8px;
+        }
+
+        .search-area input {
+            flex: 1;
+            padding: 8px 14px;
+            border: none;
+            border-radius: 30px;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(2px);
+            outline: none;
+            font-size: 14px;
+            color: #3a1f2e;
+            transition: 0.2s;
+        }
+
+        .search-area input:focus {
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.2);
+        }
+
+        .search-area button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 30px;
+            background: #d4739b;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 2px 8px rgba(200, 80, 130, 0.3);
+            white-space: nowrap;
+        }
+
+        .search-area button:hover {
+            background: #c05a82;
+            transform: scale(1.02);
+        }
+
+        .search-area button:active {
+            transform: scale(0.96);
+        }
+
+        /* 搜索结果列表 – 固定高度，无结果时也保留 */
+        .result-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            height: 200px;              /* 固定高度 */
+            overflow-y: auto;
+            padding-right: 4px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 8px 6px;
+        }
+
+        .result-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .result-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .result-list::-webkit-scrollbar-thumb {
+            background: #d4739b;
+            border-radius: 4px;
+        }
+
+        .result-item {
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 14px;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid transparent;
+            flex-shrink: 0;
+        }
+
+        .result-item:hover {
+            background: rgba(255, 255, 255, 0.85);
+            border-color: #f5a3c8;
+            transform: translateX(4px);
+        }
+
+        .result-item .info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            overflow: hidden;
+        }
+
+        .result-item .title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #3a1f2e;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .result-item .author {
+            font-size: 12px;
+            color: #7a4e6a;
+        }
+
+        .result-item .play-icon {
+            font-size: 18px;
+            color: #b35e82;
+            flex-shrink: 0;
+        }
+
+        .empty-tip {
+            text-align: center;
+            color: #7a4e6a;
+            font-size: 13px;
+            padding: 20px 0;
+            opacity: 0.6;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 当前播放信息 */
+        .now-playing {
+            font-size: 13px;
+            font-weight: 500;
+            color: #4a2a3a;
+            background: rgba(255, 255, 255, 0.3);
+            padding: 6px 14px;
+            border-radius: 30px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: center;
+        }
+
+        /* 控制区域 */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .progress-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .progress-area input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            border-radius: 4px;
+            background: rgba(180, 100, 140, 0.3);
+            outline: none;
+            transition: 0.2s;
+        }
+
+        .progress-area input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #d4739b;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(200, 80, 130, 0.4);
+            border: 2px solid white;
+        }
+
+        .progress-area input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #d4739b;
+            cursor: pointer;
+            border: 2px solid white;
+        }
+
+        .progress-area .time-label {
+            font-size: 12px;
+            color: #5a3a4a;
+            min-width: 80px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .ctrl-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(4px);
+            font-size: 22px;
+            color: #6a3a52;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 2px 8px rgba(200, 80, 130, 0.15);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ctrl-btn:hover {
+            background: white;
+            transform: scale(1.05);
+            box-shadow: 0 4px 14px rgba(200, 80, 130, 0.3);
+        }
+
+        .ctrl-btn:active {
+            transform: scale(0.92);
+        }
+
+        .ctrl-btn.stop-btn {
+            color: #b35e5e;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="bilimusic-widget" class="collapsed">
+        <!-- 标题栏 -->
+        <div id="widget-header">
+            <span class="title">Bilimusic</span>
+            <span id="toggle-icon">▼</span>
+        </div>
+
+        <!-- 内容 -->
+        <div id="widget-body">
+            <!-- 搜索 -->
+            <div class="search-area">
+                <input type="text" id="search-input" placeholder="搜索歌曲..." autocomplete="off">
+                <button id="search-btn">搜索</button>
+            </div>
+
+            <!-- 搜索结果（固定高度） -->
+            <div id="result-list" class="result-list">
+                <div class="empty-tip">输入关键词搜索</div>
+            </div>
+
+            <!-- 当前播放 -->
+            <div class="now-playing" id="now-playing">未播放</div>
+
+            <!-- 控制区 -->
+            <div class="controls">
+                <div class="progress-area">
+                    <input type="range" id="progress-slider" min="0" max="0" value="0" step="0.1">
+                    <span class="time-label" id="time-label">00:00 / 00:00</span>
+                </div>
+                <div class="button-group">
+                    <button class="ctrl-btn" id="pause-btn" title="暂停/继续">⏸</button>
+                    <button class="ctrl-btn stop-btn" id="stop-btn" title="停止">⏹</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/bilimusic.js"></script>
+</body>
+</html>

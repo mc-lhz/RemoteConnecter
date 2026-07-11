@@ -403,6 +403,20 @@
             text-rendering: optimizeLegibility;
             -moz-osx-font-smoothing: grayscale;
         }
+        #bilimusic-iframe {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 340px;
+            height: 56px;
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 9999;
+            background: transparent !important;
+            transition: height 0.3s ease;
+            overflow: hidden;
+        }
     </style>
     <!-- 引入Material Icons字体 -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -585,8 +599,20 @@
             <span>金句</span>
         </div>
     </div>
+    <iframe id="bilimusic-iframe" src="/bilimusic" scrolling="no" frameborder="0" allowtransparency="true"></iframe>
     <script src="/static/jquery.js"></script>
     <script src="/static/index.js"></script>
     <script src="/static/file-manager.js"></script>
+    <script>
+        // 监听 bilimusic iframe 的高度变化
+        window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'bilimusic-height') {
+                var iframe = document.getElementById('bilimusic-iframe');  
+                if (iframe) {
+                    iframe.style.height = (e.data.collapsed ? 56 : 520) + 'px';
+                }
+            }
+        });
+    </script>
 </body>
 </html>
