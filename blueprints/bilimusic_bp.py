@@ -77,10 +77,12 @@ def biliMusicPage():
 @bilimusic_bp.route('/api/bilimusic/search', methods=['POST'])
 def biliMusicSearch():
     keyword = request.json.get('keyword', '')
+    useOldApi = request.json.get('useOldApi', False)
+
     if not keyword:
         return jsonify({'success': False, 'error': '关键词不能为空'})
     try:
-        resultDict = bilimusic.bilibiliSearch(keyword)
+        resultDict = bilimusic.bilibiliSearch(keyword, useOldApi)
         if isinstance(resultDict, tuple) and not resultDict[0]:
             return jsonify({'success': False, 'error': resultDict[1]})
         return jsonify({'success': True, 'data': resultDict})

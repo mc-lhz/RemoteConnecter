@@ -12,6 +12,7 @@
     const timeLabel = document.getElementById('time-label');
     const pauseBtn = document.getElementById('pause-btn');
     const stopBtn = document.getElementById('stop-btn');
+    const useOldApiBtn = document.getElementById('use-old-api-btn');
 
     let currentBvid = null;
     let isPlaying = false;
@@ -27,6 +28,16 @@
         const m = Math.floor(seconds / 60);
         const s = Math.floor(seconds % 60);
         return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function escapeHtml(text) {
+        if (text == null) return '';
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     function callApi(action, data = {}) {
@@ -127,7 +138,7 @@
             return;
         }
 
-        callApi('search', { keyword: keywordStr })
+        callApi('search', { keyword: keywordStr ,useOldApi: useOldApiBtn.checked})
             .then(res => {
                 if (!res.success) {
                     resultList.innerHTML = `<div class="empty-tip">搜索失败: ${res.error}</div>`;
@@ -145,10 +156,10 @@
                     const title = item.title || item.Title || '未知标题';
                     const author = item.author || item.Author || '未知作者';
                     html += `
-                        <div class="result-item" data-bvid="${bvid}" data-title="${title}" data-author="${author}">
+                        <div class="result-item" data-bvid="${escapeHtml(bvid)}" data-title="${escapeHtml(title)}" data-author="${escapeHtml(author)}">
                             <div class="info">
-                                <span class="title">${title}</span>
-                                <span class="author">${author}</span>
+                                <span class="title">${escapeHtml(title)}</span>
+                                <span class="author">${escapeHtml(author)}</span>
                             </div>
                             <span class="play-icon">▶</span>
                         </div>

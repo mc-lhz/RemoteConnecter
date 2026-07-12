@@ -1,7 +1,5 @@
 import requests
 
-# 是否使用新版搜索接口
-USE_NEW_API = True
 
 # 旧版接口请求头
 searchHeaders = {
@@ -71,6 +69,8 @@ def bilibiliSearchOld(keyword: str):
 
     data = response.json()
     searchList = data['data']['result']
+    for item in searchList:
+        item['title'] = item.get('title', '').replace('<em class="keyword">', '').replace('</em>', '')
     return searchList
 
 
@@ -100,7 +100,6 @@ def bilibiliSearchNew(keyword: str):
             for video in item.get('data', []):
                 videoList.append({
                     'bvid': video.get('bvid'),
-                    'title': video.get('title', ''),
                     'title': video.get('title', '').replace('<em class="keyword">', '').replace('</em>', ''),
                     'author': video.get('author', video.get('upname', video.get('name', '未知作者')))
                 })
@@ -108,9 +107,9 @@ def bilibiliSearchNew(keyword: str):
     return videoList
 
 
-def bilibiliSearch(keyword: str):
+def bilibiliSearch(keyword: str, useOldApi: bool = False):
     """
-    搜索 B 站视频（根据 USE_NEW_API 自动选择新旧接口）
+    搜索 B 站视频（根据 useOldApi 选择新旧接口）
 
     Args:
         keyword: 搜索关键词
@@ -121,10 +120,10 @@ def bilibiliSearch(keyword: str):
     Raises:
         False: 请求失败时返回 False 并包含错误信息
     """
-    if USE_NEW_API:
-        return bilibiliSearchNew(keyword)
-    else:
+    if useOldApi:
         return bilibiliSearchOld(keyword)
+    else:
+        return bilibiliSearchNew(keyword)
 
 
 def getFile(bvid: str):
