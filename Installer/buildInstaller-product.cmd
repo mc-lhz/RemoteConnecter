@@ -1,0 +1,1 @@
+pyinstaller -F -w --upx-dir "../upx" RemoteConnecterInstaller.py
