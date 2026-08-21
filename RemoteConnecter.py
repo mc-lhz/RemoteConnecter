@@ -107,6 +107,7 @@ AI替代大部分重复性的编码，但不能完全替代人类的判断和理
 import sys
 import ctypes
 from flask import Flask
+import Logcat
 from utils import *
 from blueprints.bilimusic_bp import bilimusic_bp
 from blueprints.main_bp import main_bp
@@ -138,5 +139,5 @@ app.register_blueprint(update_bp)     # 更新管理
 app.register_blueprint(bilimusic_bp)  # B 站视频搜索 / 下载音频
 # ---- 启动 ----
 if __name__ == '__main__':
-    print(getPythonVersion())
+    Logcat.Logcat().i('Main', getPythonVersion())
     app.run(host='0.0.0.0', port=80, debug=True, use_reloader=True)

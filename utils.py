@@ -13,6 +13,9 @@ import re
 import threading, time
 from urllib.parse import urlparse
 import requests
+import Logcat
+
+Log = Logcat.Logcat()
 
 def getVersion():
     return VERSION
@@ -186,7 +189,7 @@ ping 127.0.0.1 -n 2 >nul
 del "%~f0"
 ''')
 
-        print(f'[更新] 启动更新脚本: {batchPath}')
+        Log.i('更新', f'启动更新脚本: {batchPath}')
 
         subprocess.Popen(
             f'start /b "" "{batchPath}"',
@@ -198,7 +201,7 @@ del "%~f0"
         return True, "更新成功"
 
     else:
-        print('[更新] 开发环境，仅下载')
+        Log.i('更新', '开发环境，仅下载')
         return True, "开发环境，仅下载"
 
 
@@ -240,22 +243,22 @@ def remoteUpdate(updateUrl):
         testDownload = True
 
     try:
-        print(f'[更新] 正在下载: {updateUrl}')
+        Log.i('更新', f'正在下载: {updateUrl}')
         try:
             response = requests.get(updateUrl, timeout=30)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            print(f'[更新] 下载失败: {e}')
+            Log.e('更新', f'下载失败: {e}')
             return False, f"下载失败: {str(e)}"
 
         with open(UPDATER_PATH, 'wb') as f:
             f.write(response.content)
 
-        print(f'[更新] 下载完成: {UPDATER_PATH}')
+        Log.i('更新', f'下载完成: {UPDATER_PATH}')
         updateResult = startUpdate(UPDATER_PATH, mainExe, testDownload)
         return updateResult
     except Exception as e:
-        print(f'[更新] 失败: {e}')
+        Log.e('更新', f'失败: {e}')
         return False, f"更新失败: {str(e)}"
 
 

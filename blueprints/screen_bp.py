@@ -10,6 +10,10 @@ from pynput.keyboard import Controller as KeyboardController, Key
 from pynput.mouse import Button
 from pynput.mouse import Controller as MouseController
 
+import Logcat
+
+Log = Logcat.Logcat()
+
 # 创建蓝图，挂载在 /screenshot
 screen_bp = Blueprint('screen', __name__)
 
@@ -105,7 +109,7 @@ def screenshotControl():
     elif controlType == 'keyboard':
         keyString = request.args.get('key', None)
         if keyString:
-            print(f'[键盘] 收到按键: {keyString}')
+            Log.i('Keyboard', f'收到按键: {keyString}')
 
             # 解析组合键：ctrl+c → ['ctrl','c']；shift+enter → ['shift','enter']
             keyList = keyString.lower().split('+')
@@ -119,29 +123,29 @@ def screenshotControl():
                         continue
                     if key in modifierKeys:
                         # 修饰键：先按下
-                        print(f'  按下修饰键: {key}')
+                        Log.d('Keyboard', f'按下修饰键: {key}')
                         keyboardController.press(modifierKeys[key])
                         modifiers.append(modifierKeys[key])
                     elif key in specialKeys:
                         # 特殊键：按下 + 释放
-                        print(f'  按下特殊键: {key}')
+                        Log.d('Keyboard', f'按下特殊键: {key}')
                         keyboardController.press(specialKeys[key])
                         keyboardController.release(specialKeys[key])
                     else:
                         # 普通字符
-                        print(f'  按下普通键: {key}')
+                        Log.d('Keyboard', f'按下普通键: {key}')
                         keyboardController.press(key)
                         keyboardController.release(key)
 
                 # 释放所有修饰键（逆序）
                 for modifier in reversed(modifiers):
-                    print(f'  释放修饰键')
+                    Log.d('Keyboard', '释放修饰键')
                     keyboardController.release(modifier)
 
-                print('[键盘] 执行完成')
+                Log.i('Keyboard', '执行完成')
                 return '键盘输入成功'
             except Exception as e:
-                print(f'[键盘] 错误: {e}')
+                Log.e('Keyboard', f'错误: {e}')
                 return f'键盘输入失败: {str(e)}', 500
 
     return '无效操作', 400

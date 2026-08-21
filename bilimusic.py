@@ -1,4 +1,7 @@
 import requests
+import Logcat
+
+Log = Logcat.Logcat()
 
 
 # 旧版接口请求头
@@ -61,7 +64,7 @@ def bilibiliSearchOld(keyword: str):
         if response.status_code == 200:
             break
         elif response.status_code == 412:
-            print(f"请求被拒绝，正在重试 {response.text} 次数：{retryCount}")
+            Log.w('BiliMusic', f'请求被拒绝，正在重试 {response.text} 次数：{retryCount}')
             retryCount += 1
             continue
         else:
@@ -139,7 +142,7 @@ def getFile(bvid: str):
     responsePage = requests.get(pageUrl, headers=getFileHeaders)
     pageData = responsePage.json()
     cid = pageData['data'][0]['cid']
-    print(f"CID: {cid}")
+    Log.i('BiliMusic', f'CID: {cid}')
 
     # 2. 获取音频播放地址
     playUrl = f"https://api.bilibili.com/x/player/playurl?fnval=80&cid={cid}&bvid={bvid}"

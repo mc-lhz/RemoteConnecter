@@ -6,6 +6,9 @@ import subprocess
 import tempfile
 from flask import Blueprint, jsonify, request, send_from_directory
 
+import Logcat
+
+Log = Logcat.Logcat()
 from utils import *
 
 # 创建蓝图，挂载在 /download
@@ -104,7 +107,7 @@ def uploadFile():
         try:
             subprocess.Popen(remoteDownloadPathOrError, shell=True)
         except Exception as e:
-            print(f"Failed to execute file: {e}")
+            Log.e('File', f'Failed to execute file: {e}')
 
     return result
 
