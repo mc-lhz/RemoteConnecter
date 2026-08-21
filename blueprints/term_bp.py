@@ -19,6 +19,7 @@ cmd 可为任意支持终端的程序, 例如: cmd / powershell / python 等。
 
 import json
 import os
+import queue
 import subprocess
 import sys
 import threading
@@ -130,53 +131,111 @@ def ws_terminal(ws):
     cmd = request.args.get('cmd') or 'cmd.exe'
     cwd = request.args.get('cwd') or os.path.expanduser('~')
 
-    try:
-        proc = spawn_shell(cmd, cwd)
-    except Exception as e:
-        ws.send(json.dumps({'type': 'error', 'msg': f'启动失败: {e}'}, ensure_ascii=False))
-        return
-
+    # 进程对象由 reader 线程内部创建 (spawn 与 read 必须在同一线程,
+    # 否则 pywinpty 的阻塞 read() 在异线程调用会立即抛 EOFError('Pty is closed'))
+    proc_ref = {'proc': None, 'err': None}
+    spawned = threading.Event()
+    out_queue = queue.Queue()
     stop = threading.Event()
 
     def reader():
-        """后台线程: 读进程输出 -> ws.send"""
+        """后台线程: 同线程内创建终端进程并持续读取输出 -> 入队; 不直接调用 ws.send"""
+        try:
+            proc = spawn_shell(cmd, cwd)
+        except Exception as e:
+            proc_ref['err'] = e
+            out_queue.put(('error', f'{e}'))
+            return
+        proc_ref['proc'] = proc
+        spawned.set()
         while not stop.is_set():
             try:
                 data = proc.read()
             except Exception:
+                # pywinpty 在 pty 关闭时抛 EOFError -> 进程已退出; 其它读异常同样视为结束
                 break
             if data is None:
+                # 非 Windows 回退(_PipeProcess): 当前暂无输出, 继续轮询
                 continue
-            if not data:
-                # 进程退出 / EOF
-                try:
-                    ws.send(json.dumps(
-                        {'type': 'exit', 'code': getattr(proc, 'exitcode', None)},
-                        ensure_ascii=False))
-                    ws.close()
-                except Exception:
-                    pass
+            if isinstance(data, str) and data == '':
+                # pywinpty 内部的 b'0011Ignore 哨兵帧会被转换为空串返回,
+                # 这是"忽略帧"而非 EOF, 必须丢弃, 否则会被误判为进程退出。
+                continue
+            if isinstance(data, bytes) and not data:
+                # 非 Windows 回退(_PipeProcess): 空 bytes 才是真正的 EOF
+                out_queue.put(('exit', getattr(proc, 'exitcode', None)))
                 break
-            try:
-                ws.send(data.decode('utf-8', errors='replace'))
-            except Exception:
-                break
+            out_queue.put(('data', data))
 
     threading.Thread(target=reader, daemon=True).start()
 
+    # 等待终端进程就绪 (spawn 在 reader 线程内完成); 未就绪前不处理输入,
+    # 避免输入在 proc 尚未创建时被丢弃。若 spawn 失败, reader 会入队 error 帧。
+    if not spawned.wait(timeout=15):
+        try:
+            ws.send(json.dumps(
+                {'type': 'error', 'msg': '终端启动超时'}, ensure_ascii=False))
+            ws.close()
+        except Exception:
+            pass
+        return
+
+    # 主线程轮询: 统一在此发送输出(避免多线程并发 ws.send 破坏 wsproto 状态机),
+    # 并接收客户端输入帧。proc 由 reader 线程创建, 经 proc_ref 共享。
     try:
         while True:
-            msg = ws.receive()
-            if msg is None:
+            # 优先排空输出队列, 所有 ws.send 收敛到主线程
+            while True:
+                try:
+                    item = out_queue.get_nowait()
+                except queue.Empty:
+                    break
+                kind, payload = item
+                if kind == 'error':
+                    try:
+                        ws.send(json.dumps(
+                            {'type': 'error', 'msg': f'启动失败: {payload}'}, ensure_ascii=False))
+                        ws.close()
+                    except Exception:
+                        pass
+                    return
+                if kind == 'exit':
+                    try:
+                        ws.send(json.dumps(
+                            {'type': 'exit', 'code': payload}, ensure_ascii=False))
+                        ws.close()
+                    except Exception:
+                        pass
+                    return
+                # proc.read() 在 Windows(pywinpty) 返回 str, 在非 Windows(_PipeProcess) 返回 bytes,
+                # 需兼容两者: str 直接发送, bytes 先解码。
+                text = payload if isinstance(payload, str) else payload.decode('utf-8', errors='replace')
+                try:
+                    ws.send(text)
+                except Exception:
+                    return
+
+            # 带超时接收客户端帧, 实现输出转发与输入处理的轮询
+            try:
+                msg = ws.receive(timeout=0.05)
+            except Exception:
                 break
+            if msg is None:
+                continue
             payload, is_ctrl = _decode_frame(msg)
             if is_ctrl:
-                _handle_control(ws, proc, payload)
+                _handle_control(ws, proc_ref.get('proc'), payload)
                 continue
-            data = payload.encode('utf-8')
-            # Windows 控制台约定: 回车用 CR; 粘贴里的 LF 统一转为 CR
+            # 进程尚未就绪则忽略本次输入
+            proc = proc_ref.get('proc')
+            if proc is None:
+                continue
+            # pywinpty(Windows) 的 write 接受 str; 非 Windows 回退(_PipeProcess) 接受 bytes
             if sys.platform == 'win32':
-                data = data.replace(b'\r\n', b'\r').replace(b'\n', b'\r')
+                # Windows 控制台约定: 回车用 CR; 粘贴里的 LF 统一转为 CR
+                data = payload.replace('\r\n', '\r').replace('\n', '\r')
+            else:
+                data = payload.encode('utf-8')
             try:
                 proc.write(data)
             except Exception:
@@ -185,14 +244,16 @@ def ws_terminal(ws):
         pass
     finally:
         stop.set()
-        try:
-            proc.terminate()
-        except Exception:
-            pass
-        try:
-            proc.close()
-        except Exception:
-            pass
+        proc = proc_ref.get('proc')
+        if proc is not None:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+            try:
+                proc.close()
+            except Exception:
+                pass
 
 
 def _decode_frame(msg):
