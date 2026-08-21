@@ -1,0 +1,5 @@
+# 终端 (term_temp) 依赖
+#   flask-sock   : Flask WebSocket (纯 Python, 跨平台)
+#   pywinpty     : Windows ConPTY (仅 Windows 安装)
+flask-sock>=0.7
+pywinpty>=2.0; sys_platform == 'win32'
