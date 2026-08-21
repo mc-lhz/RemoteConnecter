@@ -48,14 +48,14 @@ def terminal():
 # 进程启动
 # ---------------------------------------------------------------------------
 
-def spawn_shell(cmd, cwd):
+def spawnShell(cmd, cwd):
     """启动终端程序。Windows 用 ConPTY; 其它平台用管道回退(仅联调)。"""
     if sys.platform == 'win32' and PtyProcess is not None:
-        return _spawn_windows(cmd, cwd)
+        return _spawnWindows(cmd, cwd)
     return _PipeProcess(cmd, cwd, {**os.environ, 'TERM': 'xterm-256color'})
 
 
-def _spawn_windows(cmd, cwd):
+def _spawnWindows(cmd, cwd):
     """Windows: 通过 ConPTY(pywinpty) 启动任意终端程序, 还原完整控制台语义"""
     return PtyProcess.spawn(
         cmd,
@@ -118,7 +118,7 @@ class _PipeProcess:
 # ---------------------------------------------------------------------------
 
 @sock.route('/terminal/api/ws', bp=term_bp)
-def ws_terminal(ws):
+def wsTerminal(ws):
     """WebSocket 终端: 前端输入 -> 进程 stdin; 进程 stdout -> 前端。
 
     帧协议:
@@ -133,20 +133,20 @@ def ws_terminal(ws):
 
     # 进程对象由 reader 线程内部创建 (spawn 与 read 必须在同一线程,
     # 否则 pywinpty 的阻塞 read() 在异线程调用会立即抛 EOFError('Pty is closed'))
-    proc_ref = {'proc': None, 'err': None}
+    procRef = {'proc': None, 'err': None}
     spawned = threading.Event()
-    out_queue = queue.Queue()
+    outQueue = queue.Queue()
     stop = threading.Event()
 
     def reader():
         """后台线程: 同线程内创建终端进程并持续读取输出 -> 入队; 不直接调用 ws.send"""
         try:
-            proc = spawn_shell(cmd, cwd)
+            proc = spawnShell(cmd, cwd)
         except Exception as e:
-            proc_ref['err'] = e
-            out_queue.put(('error', f'{e}'))
+            procRef['err'] = e
+            outQueue.put(('error', f'{e}'))
             return
-        proc_ref['proc'] = proc
+        procRef['proc'] = proc
         spawned.set()
         while not stop.is_set():
             try:
@@ -163,9 +163,9 @@ def ws_terminal(ws):
                 continue
             if isinstance(data, bytes) and not data:
                 # 非 Windows 回退(_PipeProcess): 空 bytes 才是真正的 EOF
-                out_queue.put(('exit', getattr(proc, 'exitcode', None)))
+                outQueue.put(('exit', getattr(proc, 'exitcode', None)))
                 break
-            out_queue.put(('data', data))
+            outQueue.put(('data', data))
 
     threading.Thread(target=reader, daemon=True).start()
 
@@ -181,13 +181,13 @@ def ws_terminal(ws):
         return
 
     # 主线程轮询: 统一在此发送输出(避免多线程并发 ws.send 破坏 wsproto 状态机),
-    # 并接收客户端输入帧。proc 由 reader 线程创建, 经 proc_ref 共享。
+    # 并接收客户端输入帧。proc 由 reader 线程创建, 经 procRef 共享。
     try:
         while True:
             # 优先排空输出队列, 所有 ws.send 收敛到主线程
             while True:
                 try:
-                    item = out_queue.get_nowait()
+                    item = outQueue.get_nowait()
                 except queue.Empty:
                     break
                 kind, payload = item
@@ -222,12 +222,12 @@ def ws_terminal(ws):
                 break
             if msg is None:
                 continue
-            payload, is_ctrl = _decode_frame(msg)
-            if is_ctrl:
-                _handle_control(ws, proc_ref.get('proc'), payload)
+            payload, isCtrl = _decodeFrame(msg)
+            if isCtrl:
+                _handleControl(ws, procRef.get('proc'), payload)
                 continue
             # 进程尚未就绪则忽略本次输入
-            proc = proc_ref.get('proc')
+            proc = procRef.get('proc')
             if proc is None:
                 continue
             # pywinpty(Windows) 的 write 接受 str; 非 Windows 回退(_PipeProcess) 接受 bytes
@@ -244,7 +244,7 @@ def ws_terminal(ws):
         pass
     finally:
         stop.set()
-        proc = proc_ref.get('proc')
+        proc = procRef.get('proc')
         if proc is not None:
             try:
                 proc.terminate()
@@ -256,8 +256,8 @@ def ws_terminal(ws):
                 pass
 
 
-def _decode_frame(msg):
-    """区分控制帧(带 type 键的 JSON)与原始输入。返回 (payload, is_control)"""
+def _decodeFrame(msg):
+    """区分控制帧(带 type 键的 JSON)与原始输入。返回 (payload, isControl)"""
     text = msg if isinstance(msg, str) else msg.decode('utf-8', errors='replace')
     try:
         obj = json.loads(text)
@@ -268,7 +268,7 @@ def _decode_frame(msg):
     return text, False
 
 
-def _handle_control(ws, proc, payload):
+def _handleControl(ws, proc, payload):
     ctype = payload.get('type')
     if ctype == 'resize':
         try:
