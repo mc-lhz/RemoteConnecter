@@ -67,7 +67,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     alert('请输入有效命令');
                     return;
                 }
-                $.post('/terminal', { cmd: command }, function(data) {
+                // 发送POST请求到后端执行命令
+                $.post('/api/command', { cmd: command }, function(data) {
                     outputDiv.innerHTML = data;
                 });
 

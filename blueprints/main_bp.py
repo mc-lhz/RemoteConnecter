@@ -46,7 +46,7 @@ def index():
     )
 
 
-@main_bp.route('/terminal', methods=['POST'])
+@main_bp.route('/api/command', methods=['POST'])
 def executeCommand():
     """执行终端命令"""
     command = request.form.get('cmd')
