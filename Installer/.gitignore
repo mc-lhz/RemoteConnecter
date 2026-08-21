@@ -1,0 +1,13 @@
+*.bak
+*.gho
+*.ori
+*.orig
+*.tmp
+*.log
+
+# 打包产物
+*.exe
+dist/
+build/
+__pycache__/
+*.spec
