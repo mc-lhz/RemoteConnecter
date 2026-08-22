@@ -243,6 +243,11 @@
                 font-size: 24px;
                 margin-bottom: 8px;
             }
+            .nav-btn svg {
+                width: 24px;
+                height: 24px;
+                margin-bottom: 8px;
+            }
             .footer { display: none; } /* 手机端隐藏页脚 */
         }
 
@@ -417,6 +422,17 @@
             transition: height 0.3s ease;
             overflow: hidden;
         }
+        #term-container {
+            width: 100%;
+            height: 550px;
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 9999;
+            background: transparent !important;
+            transition: height 0.3s ease;
+            overflow: hidden;
+        }
     </style>
     <!-- 引入Material Icons字体 -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -545,26 +561,11 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- 今日金句页 -->
-            <div id="quote" class="tab-content">
+            <!-- 嵌入式终端 -->
+            <div id="term" class="tab-content">
                 <div class="card">
-                    <div class="quote-card">
-                        <div class="quote-text">教育不是灌满一桶水，而是点燃一把火。</div>
-                        <div class="quote-author">—— 威廉·巴特勒·叶芝</div>
-                    </div>
-                    
-                    <h2 style="margin-top: 30px;">更多名言</h2>
-                    <div style="margin-top: 20px;">
-                        <div style="margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 15px;">
-                            "学而不思则罔，思而不学则殆。"
-                            <div style="font-size: 14px; color: #666; margin-top: 10px;">—— 孔子</div>
-                        </div>
-                        <div style="margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 15px;">
-                            "教育的根是苦的，但其果实是甜的。"
-                            <div style="font-size: 14px; color: #666; margin-top: 10px;">—— 亚里士多德</div>
-                        </div>
-                    </div>
+                    <h2>终端</h2>
+                    <iframe id="term-container" src="/terminal" frameborder="0" allowtransparency="true"></iframe>
                 </div>
             </div>
         </div>
@@ -594,9 +595,13 @@
             <i class="icon">&#xe5d2;</i>
             <span>命令</span>
         </div>
-        <div class="nav-btn" data-tab="quote">
-            <i class="icon">&#xe866;</i>
-            <span>金句</span>
+        <div class="nav-btn" data-tab="term">
+            <!-- <i class="icon">&#xe866;</i> -->
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M6 9a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 6 9zM3.854 4.146a.5.5 0 1 0-.708.708L4.793 6.5 3.146 8.146a.5.5 0 1 0 .708.708l2-2a.5.5 0 0 0 0-.708l-2-2z"></path>
+                <path d="M2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm12 1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h12z"></path>
+            </svg>
+            <span>终端</span>
         </div>
     </div>
     <iframe id="bilimusic-iframe" src="/bilimusic" scrolling="no" frameborder="0" allowtransparency="true"></iframe>
