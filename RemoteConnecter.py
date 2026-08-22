@@ -114,7 +114,6 @@ from blueprints.main_bp import main_bp
 from blueprints.file_bp import file_bp
 from blueprints.screen_bp import screen_bp
 from blueprints.update_bp import update_bp
-from blueprints.term_bp import term_bp, sock  # 终端 (WS / ConPTY)
 # ---- Windows DPI 感知设置 (必须在最开始设置) ----
 if sys.platform == 'win32':
     try:
@@ -133,13 +132,11 @@ app.template_folder = resourcePath('templates')
 app.static_folder = resourcePath('static')
 
 # ---- 注册蓝图 ----
-app.register_blueprint(main_bp)       # 主页 & 终端
+app.register_blueprint(main_bp)       # 主页
 app.register_blueprint(file_bp)       # 文件浏览 / 下载 / 上传
 app.register_blueprint(screen_bp)     # 屏幕截图 / 推流 / 远程控制
 app.register_blueprint(update_bp)     # 更新管理
 app.register_blueprint(bilimusic_bp)  # B 站视频搜索 / 下载音频
-app.register_blueprint(term_bp)       # 终端 (term) — 页面 /terminal + API /terminal/api/ws
-sock.init_app(app)                    # 终端 WebSocket
 # ---- 启动 ----
 if __name__ == '__main__':
     Logcat.Logcat().i('Main', getPythonVersion())
