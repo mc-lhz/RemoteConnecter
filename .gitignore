@@ -35,4 +35,9 @@ Thumbs.db
 *.log
 
 # Environment
-.env
+.env.dist37/
+.build37/
+.dist_test/
+.build_test/
+.pyinstaller_cache37/
+win7_smoke_test.py
