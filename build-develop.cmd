@@ -5,4 +5,4 @@ chcp 65001
 :: ============================================================
 set PYINSTALLER_CONFIG_DIR=%~dp0.pyinstaller_cache
 echo 构建中...
-.\python39\python.exe -m PyInstaller -F --upx-dir "upx" --add-data "templates;templates" --add-data "static;static" --add-binary "ffmpeg.exe;." --add-binary "ffprobe.exe;." --collect-all winpty RemoteConnecter.py
+.\python39\python.exe -m PyInstaller -F --upx-dir "upx" --add-data "templates;templates" --add-data "static;static" --add-binary "ffmpeg.exe;." --collect-all winpty RemoteConnecter.py

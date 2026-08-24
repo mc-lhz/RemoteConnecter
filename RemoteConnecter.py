@@ -144,7 +144,4 @@ sock.init_app(app)                    # 终端 WebSocket
 # ---- 启动 ----
 if __name__ == '__main__':
     Logcat.Logcat().i('Main', getPythonVersion())
-    # 调试时通过环境变量关闭 reloader 并使用非特权端口, 避免子进程脱离调试器 / 需要管理员权限
-    useReloader = os.environ.get('RC_NO_RELOADER', '') == ''
-    runPort = int(os.environ.get('RC_RUN_PORT', '80'))
-    app.run(host='0.0.0.0', port=runPort, debug=True, use_reloader=useReloader)
+    app.run(host='0.0.0.0', port=80, debug=True, use_reloader=True)
