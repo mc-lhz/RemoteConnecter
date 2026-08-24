@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, render_template
 import os
+import re
 import tempfile
 import subprocess
 import bilimusic
@@ -10,21 +11,15 @@ bilimusic_bp = Blueprint('bilimusic', __name__)
 
 TEMP_DIR = tempfile.gettempdir()
 M4A_FILE_NAME = "RemoteConnecterBiliMusic.m4a"
-WAV_FILE_NAME = "RemoteConnecterBiliMusic.wav"
+MP3_FILE_NAME = "RemoteConnecterBiliMusic.mp3"
 m4aPath = os.path.join(TEMP_DIR, M4A_FILE_NAME)
-wavPath = os.path.join(TEMP_DIR, WAV_FILE_NAME)
+mp3Path = os.path.join(TEMP_DIR, MP3_FILE_NAME)
 # 优先使用项目目录下的 ffmpeg.exe，找不到则使用系统 PATH 中的 ffmpeg
+# 注: 使用精简版 ffmpeg-mini (仅 m4a->mp3), 不含 ffprobe,
+#     时长改由 ffmpeg 转码输出解析, 见 parseDuration()。
 FFMPEG_PATH = resourcePath('ffmpeg.exe')
 if not os.path.exists(FFMPEG_PATH):
     FFMPEG_PATH = 'ffmpeg'
-
-# 根据 ffmpeg 路径推导同目录下的 ffprobe
-if FFMPEG_PATH == 'ffmpeg':
-    FFPROBE_PATH = 'ffprobe'
-else:
-    FFPROBE_PATH = os.path.join(os.path.dirname(FFMPEG_PATH), 'ffprobe.exe')
-    if not os.path.exists(FFPROBE_PATH):
-        FFPROBE_PATH = 'ffprobe'
 
 currentBvid = None
 isPlaying = False
@@ -45,24 +40,27 @@ def runFfmpeg(args):
     )
 
 
-def m4aToWav(inputPath, outputPath):
-    result = runFfmpeg(['-y', '-i', inputPath, '-vn', '-acodec', 'pcm_s16le', '-ar', '44100', '-ac', '2', outputPath])
-    return result.returncode == 0, result.stderr.decode('utf-8', errors='ignore')
+def m4aToMp3(inputPath, outputPath):
+    # 精简版 ffmpeg-mini 默认输出 mp3 (libmp3lame); 仅做 m4a->mp3。
+    # 用 -b:a 320k 固定高码率, 减轻 AAC->MP3 二次有损转码的音质损失
+    # (mini 构建未指定 -b:a 时 LAME 默认 128k, 对高码率原档损失明显)。
+    result = runFfmpeg(['-y', '-i', inputPath, '-vn', '-b:a', '320k', outputPath])
+    success = result.returncode == 0
+    errMsg = result.stderr.decode('utf-8', errors='ignore')
+    duration = parseDuration(errMsg)
+    return success, errMsg, duration
 
 
-def getAudioDuration(path):
+def parseDuration(ffmpegOutput):
     """
-    获取音频文件时长（秒），优先使用 ffprobe，失败返回 0
+    从 ffmpeg 转码输出(stderr)解析时长(秒), 替代 ffprobe。失败返回 0。
+    匹配形如: Duration: 00:03:21.45
     """
     try:
-        result = subprocess.run(
-            [FFPROBE_PATH, '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', path],
-            capture_output=True,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-            timeout=10
-        )
-        if result.returncode == 0:
-            duration = float(result.stdout.decode('utf-8', errors='ignore').strip())
+        match = re.search(r'Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)', ffmpegOutput)
+        if match:
+            hours, minutes, seconds = match.groups()
+            duration = float(hours) * 3600 + float(minutes) * 60 + float(seconds)
             return duration if duration > 0 else 0
     except Exception:
         pass
@@ -113,26 +111,26 @@ def biliMusicControl():
             with open(m4aPath, 'wb') as f:
                 f.write(fileObject)
             
-            oldWavPath = os.path.join(TEMP_DIR, WAV_FILE_NAME)
+            oldMp3Path = os.path.join(TEMP_DIR, MP3_FILE_NAME)
             try:
-                os.remove(oldWavPath)
+                os.remove(oldMp3Path)
             except Exception:
                 pass
 
             mixer.music.unload()  # 解除文件占用
 
-            convResult = m4aToWav(m4aPath, wavPath)
+            convResult = m4aToMp3(m4aPath, mp3Path)
             if not convResult[0]:
                 return jsonify({'success': False, 'error': 'ffmpeg转换失败: ' + convResult[1]})
 
-            mixer.music.load(wavPath)
+            mixer.music.load(mp3Path)
             mixer.music.play()
-            duration = getAudioDuration(wavPath)
+            duration = convResult[2]
             currentBvid = bvid
             isPlaying = True
             isPaused = False
             isStopped = False
-            return jsonify({'success': True, 'path': wavPath, 'duration': duration})
+            return jsonify({'success': True, 'path': mp3Path, 'duration': duration})
 
         elif operation == 'stop':
             mixer.music.stop()
