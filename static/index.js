@@ -1,25 +1,6 @@
-// 设备检测与页面切换逻辑
+// 页面切换逻辑
 document.addEventListener('DOMContentLoaded', function() {
-    const deviceInfo = document.getElementById('deviceInfo');
     const currentTime = document.getElementById('currentTime');
-
-    // 检测设备类型和屏幕方向
-    function detectDeviceAndLayout() {
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-        const aspectRatio = width / height;
-
-        // 判断是横屏设备（如词典笔）还是竖屏手机
-        if (aspectRatio >= 2) { // 宽高比 >= 2: 横屏模式
-            deviceInfo.textContent = '横屏模式 (词典笔)';
-            document.body.classList.add('landscape');
-            document.body.classList.remove('portrait');
-        } else { // 竖屏模式
-            deviceInfo.textContent = '竖屏模式 (手机)';
-            document.body.classList.add('portrait');
-            document.body.classList.remove('landscape');
-        }
-    }
 
     // 更新当前时间
     function updateTime() {
@@ -100,14 +81,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 初始化所有功能
-    detectDeviceAndLayout();
     updateTime();
     setupTabSwitching();
     setupCommandExecution();
     setupInteractiveButtons();
-
-    // 监听窗口变化，自动切换布局
-    window.addEventListener('resize', detectDeviceAndLayout);
 
     // 每秒更新时间
     setInterval(updateTime, 1000);
