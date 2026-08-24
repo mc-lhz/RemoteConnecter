@@ -36,8 +36,18 @@ Thumbs.db
 
 # Environment
 .env.dist37/
+.dist37/
 .build37/
 .dist_test/
 .build_test/
 .pyinstaller_cache37/
 win7_smoke_test.py
+
+# 项目内可移动 Python 构建环境(embeddable, 不入库)
+python39/
+_dl/
+.dist39/
+.build39/
+.pyinstaller_cache/
+smoke_out.txt
+smoke_err.txt

@@ -1,0 +1,13 @@
+# RemoteConnecter 打包用真实运行依赖(仅这些, 不装任何 ML/科学栈)
+# 配套可移动 Python: python39/(embeddable 3.9.x), 见 build-product.cmd / build-develop.cmd
+flask==3.1.2
+flask_sock==0.7.0
+simple_websocket==1.1.0
+pywinpty==3.0.3
+pygame==2.6.1
+pillow==11.3.0
+psutil==7.2.2
+pynput==1.8.2
+requests==2.32.5
+werkzeug==3.1.8
+PyInstaller==6.15.0
