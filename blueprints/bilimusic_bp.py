@@ -10,12 +10,13 @@ from utils import resourcePath
 bilimusic_bp = Blueprint('bilimusic', __name__)
 
 TEMP_DIR = tempfile.gettempdir()
+# 临时文件名
 M4A_FILE_NAME = "RemoteConnecterBiliMusic.m4a"
-MP3_FILE_NAME = "RemoteConnecterBiliMusic.mp3"
+WAV_FILE_NAME = "RemoteConnecterBiliMusic.wav"
 m4aPath = os.path.join(TEMP_DIR, M4A_FILE_NAME)
-mp3Path = os.path.join(TEMP_DIR, MP3_FILE_NAME)
+wavPath = os.path.join(TEMP_DIR, WAV_FILE_NAME)
 # 优先使用项目目录下的 ffmpeg.exe，找不到则使用系统 PATH 中的 ffmpeg
-# 注: 使用精简版 ffmpeg-mini (仅 m4a->mp3), 不含 ffprobe,
+# 注: 使用完整版 ffmpeg (含 wav muxer + pcm_s16le), 输出 wav 无重编码, 极快且无损;
 #     时长改由 ffmpeg 转码输出解析, 见 parseDuration()。
 FFMPEG_PATH = resourcePath('ffmpeg.exe')
 if not os.path.exists(FFMPEG_PATH):
@@ -40,10 +41,22 @@ def runFfmpeg(args):
     )
 
 
+def m4aToWav(inputPath, outputPath):
+    # 完整版 ffmpeg (含 wav muxer + pcm_s16le): m4a -> wav。
+    # 仅解码写 PCM, 无重编码, 极快且无损; 时长由 ffmpeg 输出解析 (parseDuration)。
+    # 使用此函数时, 请将 FFMPEG_PATH 指向含 wav 输出的完整版 ffmpeg.exe。
+    result = runFfmpeg(['-y', '-i', inputPath, '-vn', '-acodec', 'pcm_s16le', outputPath])
+    success = result.returncode == 0
+    errMsg = result.stderr.decode('utf-8', errors='ignore')
+    duration = parseDuration(errMsg)
+    return success, errMsg, duration
+
+
 def m4aToMp3(inputPath, outputPath):
-    # 精简版 ffmpeg-mini 默认输出 mp3 (libmp3lame); 仅做 m4a->mp3。
+    # 精简版 ffmpeg-mini (仅 mp3 muxer + libmp3lame): m4a -> mp3。
     # 用 -b:a 320k 固定高码率, 减轻 AAC->MP3 二次有损转码的音质损失
     # (mini 构建未指定 -b:a 时 LAME 默认 128k, 对高码率原档损失明显)。
+    # 使用此函数时, 请将 FFMPEG_PATH 指向 mp3-only 的 ffmpeg-mini.exe。
     result = runFfmpeg(['-y', '-i', inputPath, '-vn', '-b:a', '320k', outputPath])
     success = result.returncode == 0
     errMsg = result.stderr.decode('utf-8', errors='ignore')
@@ -111,26 +124,26 @@ def biliMusicControl():
             with open(m4aPath, 'wb') as f:
                 f.write(fileObject)
             
-            oldMp3Path = os.path.join(TEMP_DIR, MP3_FILE_NAME)
+            oldWavPath = os.path.join(TEMP_DIR, WAV_FILE_NAME)
             try:
-                os.remove(oldMp3Path)
+                os.remove(oldWavPath)
             except Exception:
                 pass
 
             mixer.music.unload()  # 解除文件占用
-
-            convResult = m4aToMp3(m4aPath, mp3Path)
+            convResult = m4aToWav(m4aPath, wavPath)
+            
             if not convResult[0]:
                 return jsonify({'success': False, 'error': 'ffmpeg转换失败: ' + convResult[1]})
 
-            mixer.music.load(mp3Path)
+            mixer.music.load(wavPath)
             mixer.music.play()
             duration = convResult[2]
             currentBvid = bvid
             isPlaying = True
             isPaused = False
             isStopped = False
-            return jsonify({'success': True, 'path': mp3Path, 'duration': duration})
+            return jsonify({'success': True, 'path': wavPath, 'duration': duration})
 
         elif operation == 'stop':
             mixer.music.stop()
