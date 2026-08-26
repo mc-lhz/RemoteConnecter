@@ -72,10 +72,10 @@ RemoteConnecter/
 每个业务蓝图声明 `template_folder='templates'`、`static_folder='static'`，前端文件放各自业务目录内，不走全局 static。
 
 ### 3. 路由约定
-- 无 url_prefix 的短路由：`/terminal`（term）、`/screenshot`（screen）、`/download`、`/upload`（file）
-- 有 url_prefix 的：`/main/`、`/bilimusic/`、`/update/`
-- 静态资源：`/shared/static/...`（公共）、`/main/static/...`、`/screen/static/...`、`/term/static/...` 等（业务）
-- 根路由 `/` = 重定向到 `/main/`
+- 无 url_prefix 的短路由：`/`（main 主页）、`/terminal`（term）、`/screenshot`（screen）、`/bilimusic`（bilimusic）、`/update`（update）、`/download`、`/upload`（file）
+- 全部蓝图统一无 `url_prefix`，路由一律写显式全路径
+- 静态资源：`/shared/static/...`（公共）、`/main/static/...`、`/screen/static/...`、`/term/static/...`、`/bilimusic/static/...`、`/update/static/...`（业务）
+- 根路由 `/` = 主页（main_bp 直挂，无重定向）
 
 ### 4. 命名规范（重要！用户强约束）
 - **所有变量、函数、对象属性必须小驼峰（lower camelCase）**：`userName`、`getUserId`、`isLoggedIn`、`apiEndpoint`
@@ -101,7 +101,6 @@ RemoteConnecter/
 
 ### 进行中 / 待办
 - ⏳ `refactor-business-structure` 分支（当前工作分支）**未合并回 main、未推送远程**
-- ⏳ main/bilimusic/update 仍保留 `url_prefix`（因首页 `/` 路由与根重定向 `/main/` 冲突，未统一缩短为无前缀短路由）
 - ⏳ 合并分支、推送 GitHub/Gitee 待用户确认
 
 ---

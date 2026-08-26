@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 // 发送POST请求到后端执行命令
-                $.post('/main/api/command', { cmd: command }, function(data) {
+                $.post('/api/command', { cmd: command }, function(data) {
                     outputDiv.innerHTML = data;
                 });
 

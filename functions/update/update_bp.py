@@ -7,15 +7,15 @@ from utils import *
 update_bp = Blueprint('update', __name__,
     template_folder='templates',
     static_folder='static',
-    url_prefix='/update')
+    static_url_path='/update/static')
 
 
-@update_bp.route('/')
+@update_bp.route('/update')
 def updatePage():
     return render_template('update.html')
 
 
-@update_bp.route('/api/update', methods=['POST'])
+@update_bp.route('/update/api/update', methods=['POST'])
 def updateApi():
     updateMethod = request.form.get('updateMethod', 'remote')
     # 根据更新方式选择对应的更新逻辑

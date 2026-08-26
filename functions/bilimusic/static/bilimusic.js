@@ -21,7 +21,7 @@
     let songDuration = 0;
     let progressTimer = null;
 
-    const API_BASE = '/bilimusic/api/bilimusic';
+    const API_BASE = '/bilimusic/api';
 
     function formatTime(seconds) {
         if (isNaN(seconds) || !isFinite(seconds)) seconds = 0;

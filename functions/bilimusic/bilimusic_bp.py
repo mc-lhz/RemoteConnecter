@@ -10,7 +10,7 @@ from utils import resourcePath
 bilimusic_bp = Blueprint('bilimusic', __name__,
     template_folder='templates',
     static_folder='static',
-    url_prefix='/bilimusic')
+    static_url_path='/bilimusic/static')
 
 TEMP_DIR = tempfile.gettempdir()
 # 临时文件名
@@ -83,12 +83,14 @@ def parseDuration(ffmpegOutput):
     return 0
 
 
-@bilimusic_bp.route('/')
+# strict_slashes=False: 容忍 /bilimusic 与 /bilimusic/ 两种写法,
+# 避免首页 iframe 访问 /bilimusic 时被 Flask 308 重定向导致加载失败
+@bilimusic_bp.route('/bilimusic', strict_slashes=False)
 def biliMusicPage():
     return render_template('bilimusic.html')
 
 
-@bilimusic_bp.route('/api/bilimusic/search', methods=['POST'])
+@bilimusic_bp.route('/bilimusic/api/search', methods=['POST'])
 def biliMusicSearch():
     keyword = request.json.get('keyword', '')
     useOldApi = request.json.get('useOldApi', False)
@@ -104,7 +106,7 @@ def biliMusicSearch():
         return jsonify({'success': False, 'error': str(e)})
 
 
-@bilimusic_bp.route('/api/bilimusic/control', methods=['POST'])
+@bilimusic_bp.route('/bilimusic/api/control', methods=['POST'])
 def biliMusicControl():
     global currentBvid, isPlaying, isPaused, isStopped
     operation = request.json.get('operation', '')
@@ -174,7 +176,7 @@ def biliMusicControl():
         return jsonify({'success': False, 'error': str(e)})
 
 
-@bilimusic_bp.route('/api/bilimusic/status')
+@bilimusic_bp.route('/bilimusic/api/status')
 def biliMusicStatus():
     global currentBvid, isPlaying, isPaused, isStopped
     try:

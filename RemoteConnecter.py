@@ -27,12 +27,6 @@ app = Flask(__name__)
 app.template_folder = None
 app.static_folder = None
 
-# ---- 根路径首页 (重定向到 main 蓝图) ----
-@app.route('/')
-def root():
-    from flask import redirect
-    return redirect('/main/')
-
 
 # ---- 公共静态资源 (shared/static, 多个蓝图共享) ----
 @app.route('/shared/static/<path:filename>')
