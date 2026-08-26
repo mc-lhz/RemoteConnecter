@@ -4,10 +4,13 @@ import os
 from flask import request, jsonify
 from utils import *
 
-update_bp = Blueprint('update', __name__)
+update_bp = Blueprint('update', __name__,
+    template_folder='templates',
+    static_folder='static',
+    url_prefix='/update')
 
 
-@update_bp.route('/update')
+@update_bp.route('/')
 def updatePage():
     return render_template('update.html')
 

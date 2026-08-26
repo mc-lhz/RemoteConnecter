@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 // 发送POST请求到后端执行命令
-                $.post('/api/command', { cmd: command }, function(data) {
+                $.post('/main/api/command', { cmd: command }, function(data) {
                     outputDiv.innerHTML = data;
                 });
 
@@ -65,16 +65,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // 模拟下载和远程控制点击
+    // 远程控制按钮
     function setupInteractiveButtons() {
-        // 远程控制按钮
         document.querySelectorAll('.control-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 const action = this.querySelector('span').textContent;
-                if (action === '键鼠控制') {
-                    window.location.href = '/control';
-                } else if (action === '实时屏幕') {
-                    window.location.href = '/screenshot';
+                if (action === '实时屏幕') {
+                    window.location.href = '/screen/screenshot';
                 }
             });
         });

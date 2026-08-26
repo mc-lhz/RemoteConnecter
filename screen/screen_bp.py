@@ -14,8 +14,11 @@ import Logcat
 
 Log = Logcat.Logcat()
 
-# 创建蓝图，挂载在 /screenshot
-screen_bp = Blueprint('screen', __name__)
+# 创建蓝图，挂在 /screen 前缀
+screen_bp = Blueprint('screen', __name__,
+    template_folder='templates',
+    static_folder='static',
+    url_prefix='/screen')
 
 # ---- 控制器实例 ----
 mouseController = MouseController()

@@ -110,12 +110,12 @@ import ctypes
 from flask import Flask
 import Logcat
 from utils import *
-from blueprints.bilimusic_bp import bilimusic_bp
-from blueprints.main_bp import main_bp
-from blueprints.file_bp import file_bp
-from blueprints.screen_bp import screen_bp
-from blueprints.update_bp import update_bp
-from blueprints.term_bp import term_bp, sock  # 终端 (WS / ConPTY)
+from main.main_bp import main_bp
+from main.file_bp import file_bp
+from screen.screen_bp import screen_bp
+from update.update_bp import update_bp
+from bilimusic.bilimusic_bp import bilimusic_bp
+from term.term_bp import term_bp, sock  # 终端 (WS / ConPTY)
 # ---- Windows DPI 感知设置 (必须在最开始设置) ----
 if sys.platform == 'win32':
     try:
@@ -129,17 +129,32 @@ if sys.platform == 'win32':
             pass
 
 # ---- 创建应用 ----
+# 各蓝图自带 template_folder/static_folder，主应用无需全局指定
 app = Flask(__name__)
-app.template_folder = resourcePath('templates')
-app.static_folder = resourcePath('static')
+app.template_folder = None
+app.static_folder = None
+
+# ---- 根路径首页 (重定向到 main 蓝图) ----
+@app.route('/')
+def root():
+    from flask import redirect
+    return redirect('/main/')
+
+
+# ---- 公共静态资源 (shared/static, 多个蓝图共享) ----
+@app.route('/shared/static/<path:filename>')
+def sharedStatic(filename):
+    from flask import send_from_directory
+    return send_from_directory(resourcePath('shared/static'), filename)
+
 
 # ---- 注册蓝图 ----
-app.register_blueprint(main_bp)       # 主页 & 终端
+app.register_blueprint(main_bp)       # 主页 & 终端 (/main)
 app.register_blueprint(file_bp)       # 文件浏览 / 下载 / 上传
-app.register_blueprint(screen_bp)     # 屏幕截图 / 推流 / 远程控制
-app.register_blueprint(update_bp)     # 更新管理
-app.register_blueprint(bilimusic_bp)  # B 站视频搜索 / 下载音频
-app.register_blueprint(term_bp)       # 终端 (term) — 页面 /terminal + API /terminal/api/ws
+app.register_blueprint(screen_bp)     # 屏幕截图 / 推流 / 远程控制 (/screen)
+app.register_blueprint(update_bp)     # 更新管理 (/update)
+app.register_blueprint(bilimusic_bp)  # B 站视频搜索 / 下载音频 (/bilimusic)
+app.register_blueprint(term_bp)       # 终端 (term) — 页面 /term/terminal + API /terminal/api/ws
 sock.init_app(app)                    # 终端 WebSocket
 # ---- 启动 ----
 if __name__ == '__main__':

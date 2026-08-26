@@ -14,7 +14,6 @@ from utils import *
 # 创建蓝图，挂载在 /download
 file_bp = Blueprint('file', __name__)
 
-
 @file_bp.route('/download')
 def downloadBrowse():
     """浏览文件系统 — 列表页"""
@@ -120,9 +119,9 @@ def renderFileActionDialog(path):
 <head>
     <meta charset="UTF-8">
     <title>选择操作</title>
-    <link rel="stylesheet" href="/static/jquery-ui.min.css">
-    <script src="/static/jquery.js"></script>
-    <script src="/static/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="/shared/static/jquery-ui.min.css">
+    <script src="/shared/static/jquery.js"></script>
+    <script src="/shared/static/jquery-ui.min.js"></script>
 </head>
 <body>
     <div id="dialog" title="选择操作">

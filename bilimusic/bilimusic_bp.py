@@ -3,11 +3,14 @@ import os
 import re
 import tempfile
 import subprocess
-import bilimusic
+from . import bilimusic
 from pygame import mixer
 from utils import resourcePath
 
-bilimusic_bp = Blueprint('bilimusic', __name__)
+bilimusic_bp = Blueprint('bilimusic', __name__,
+    template_folder='templates',
+    static_folder='static',
+    url_prefix='/bilimusic')
 
 TEMP_DIR = tempfile.gettempdir()
 # 临时文件名
@@ -18,7 +21,7 @@ wavPath = os.path.join(TEMP_DIR, WAV_FILE_NAME)
 # 优先使用项目目录下的 ffmpeg.exe，找不到则使用系统 PATH 中的 ffmpeg
 # 注: 使用完整版 ffmpeg (含 wav muxer + pcm_s16le), 输出 wav 无重编码, 极快且无损;
 #     时长改由 ffmpeg 转码输出解析, 见 parseDuration()。
-FFMPEG_PATH = resourcePath('ffmpeg.exe')
+FFMPEG_PATH = resourcePath('bin/ffmpeg.exe')
 if not os.path.exists(FFMPEG_PATH):
     FFMPEG_PATH = 'ffmpeg'
 
@@ -80,7 +83,7 @@ def parseDuration(ffmpegOutput):
     return 0
 
 
-@bilimusic_bp.route('/bilimusic')
+@bilimusic_bp.route('/')
 def biliMusicPage():
     return render_template('bilimusic.html')
 

@@ -10,8 +10,11 @@ from flask import Blueprint, render_template, request
 from utils import *
 
 
-# 创建蓝图，挂载在根路径
-main_bp = Blueprint('main', __name__)
+# 创建蓝图，挂在 /main 前缀；首页 / 单独在下方注册
+main_bp = Blueprint('main', __name__,
+    template_folder='templates',
+    static_folder='static',
+    url_prefix='/main')
 
 
 @main_bp.route('/')

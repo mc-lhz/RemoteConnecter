@@ -12,7 +12,7 @@
 cmd 可为任意支持终端的程序, 例如: cmd / powershell / python 等。
 
 整合到主项目只需:
-    from blueprints.term_bp import term_bp, sock
+    from term.term_bp import term_bp, sock
     app.register_blueprint(term_bp)
     sock.init_app(app)
 """
@@ -34,7 +34,10 @@ else:
     PtyProcess = None
 
 
-term_bp = Blueprint('term', __name__)
+term_bp = Blueprint('term', __name__,
+    template_folder='templates',
+    static_folder='static',
+    url_prefix='/term')
 sock = Sock()
 
 

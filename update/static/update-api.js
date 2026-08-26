@@ -4,7 +4,7 @@ var remoteUpdateMessage = document.getElementById('remote-update-message');
 var localUpdateMessage = document.getElementById('local-update-message');
 // 统一重连消息框（远程/本地更新共用）
 var reconnectMessage = document.getElementById('reconnect-message');
-var updateApi = '/api/update';
+var updateApi = '/update/api/update';
 
 // 显示消息：success / error / info
 function showMessage(divObj, text, type) {

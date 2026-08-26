@@ -80,11 +80,11 @@
     <div id="bar">
         <!-- 点击预设命令，通过行内onclick直接连接对应命令 -->
         <button class="preset-command" onclick="globalCmd = 'cmd.exe'; connect()">
-            <img src="/static/images/cmd.png" alt="cmd">
+            <img src="/term/static/images/cmd.png" alt="cmd">
             <span>cmd</span>
         </button>   
         <button class="preset-command" onclick="globalCmd = 'powershell.exe'; connect()">
-            <img src="/static/images/powershell.png" alt="powershell">
+            <img src="/term/static/images/powershell.png" alt="powershell">
             <span>powershell</span>
         </button>
         <input id="cmd" value="" placeholder="自定义终端程序命令 如diskpart" spellcheck="false" autocomplete="off">
@@ -128,7 +128,7 @@
         function connect() {
             const cmd = globalCmd;
             const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-            const url = proto + '://' + location.host + '/terminal/api/ws?cmd=' + encodeURIComponent(cmd);
+            const url = proto + '://' + location.host + '/term/terminal/api/ws?cmd=' + encodeURIComponent(cmd);
             setStatus('连接中...');
             ws = new WebSocket(url);
 

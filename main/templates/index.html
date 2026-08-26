@@ -442,7 +442,7 @@
             <div id="term" class="tab-content">
                 <div class="card">
                     <h2>终端</h2>
-                    <iframe id="term-container" src="/terminal" frameborder="0" allowtransparency="true"></iframe>
+                    <iframe id="term-container" src="/term/terminal" frameborder="0" allowtransparency="true"></iframe>
                 </div>
             </div>
         </div>
@@ -476,9 +476,9 @@
         </div>
     </div>
     <iframe id="bilimusic-iframe" src="/bilimusic" scrolling="no" frameborder="0" allowtransparency="true"></iframe>
-    <script src="/static/jquery.js"></script>
-    <script src="/static/index.js"></script>
-    <script src="/static/file-manager.js"></script>
+    <script src="/shared/static/jquery.js"></script>
+    <script src="/main/static/index.js"></script>
+    <script src="/main/static/file-manager.js"></script>
     <script>
         // 监听 bilimusic iframe 的高度变化
         window.addEventListener('message', function(e) {

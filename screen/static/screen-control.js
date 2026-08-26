@@ -70,7 +70,7 @@ function imgToScreen(img, clientX, clientY) {
 
 function sendClick(x, y, button) {
     button = button || 'left';
-    var url = '/screenshot/api/control?controlType=mouse&x=' + x + '&y=' + y + '&button=' + button;
+    var url = '/screen/screenshot/api/control?controlType=mouse&x=' + x + '&y=' + y + '&button=' + button;
     fetch(url).then(function(r) { return r.text(); }).then(function(msg) {
         console.log('点击已发送 (' + button + '):', x, y, '→', msg);
     }).catch(function(err) {
@@ -108,7 +108,7 @@ var MODIFIER_MAP = {
 };
 
 function sendKey(key) {
-    var url = '/screenshot/api/control?controlType=keyboard&key=' + encodeURIComponent(key);
+    var url = '/screen/screenshot/api/control?controlType=keyboard&key=' + encodeURIComponent(key);
     console.log('发送请求:', url);
 
     $.get(url)
