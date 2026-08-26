@@ -50,19 +50,19 @@ def discoverAndRegisterBlueprints(app):
         - 蓝图变量命名以 _bp 结尾 (如 main_bp = Blueprint(...))
         - WebSocket 变量固定命名 sock (如 term_bp.py 中的 sock = Sock())
     新功能只需在 functions/ 下新建业务包 + *_bp.py, 无需改动主入口。
+
+    注意: 必须用 pkgutil 扫描模块而非 os.listdir 扫描磁盘。
+    打包后 *_bp.py 被打入 PYZ 压缩包, 磁盘上不存在对应文件,
+    PyInstaller 的 pyi_rth_pkgutil 运行时钩子负责枚举 PYZ 中的模块。
     """
-    functionsDir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'functions')
     sockInstances = []
-    for packageName in os.listdir(functionsDir):
-        packagePath = os.path.join(functionsDir, packageName)
-        if not os.path.isdir(packagePath) or packageName.startswith('_'):
-            continue
+    for packageInfo in pkgutil.iter_modules(functions.__path__):
+        packageName = packageInfo.name
         bpPackage = importlib.import_module(f'functions.{packageName}')
-        for fileName in os.listdir(packagePath):
-            if not fileName.endswith('_bp.py'):
+        for subInfo in pkgutil.iter_modules(bpPackage.__path__):
+            if not subInfo.name.endswith('_bp'):
                 continue
-            moduleName = fileName[:-3]
-            module = importlib.import_module(f'functions.{packageName}.{moduleName}')
+            module = importlib.import_module(f'functions.{packageName}.{subInfo.name}')
             for attrName, attrValue in vars(module).items():
                 if attrName.endswith('_bp') and isinstance(attrValue, Blueprint):
                     app.register_blueprint(attrValue)
