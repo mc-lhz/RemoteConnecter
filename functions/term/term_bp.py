@@ -37,7 +37,7 @@ else:
 term_bp = Blueprint('term', __name__,
     template_folder='templates',
     static_folder='static',
-    url_prefix='/term')
+    static_url_path='/term/static')
 sock = Sock()
 
 

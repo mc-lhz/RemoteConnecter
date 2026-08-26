@@ -128,7 +128,7 @@
         function connect() {
             const cmd = globalCmd;
             const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-            const url = proto + '://' + location.host + '/term/terminal/api/ws?cmd=' + encodeURIComponent(cmd);
+            const url = proto + '://' + location.host + '/terminal/api/ws?cmd=' + encodeURIComponent(cmd);
             setStatus('连接中...');
             ws = new WebSocket(url);
 
