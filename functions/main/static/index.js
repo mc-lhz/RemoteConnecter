@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.addEventListener('click', function() {
                 const action = this.querySelector('span').textContent;
                 if (action === '实时屏幕') {
-                    window.location.href = '/screen/screenshot';
+                    window.location.href = '/screenshot';
                 }
             });
         });

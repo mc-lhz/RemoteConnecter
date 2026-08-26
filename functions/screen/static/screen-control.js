@@ -108,7 +108,7 @@ var MODIFIER_MAP = {
 };
 
 function sendKey(key) {
-    var url = '/screen/screenshot/api/control?controlType=keyboard&key=' + encodeURIComponent(key);
+    var url = '/screenshot/api/control?controlType=keyboard&key=' + encodeURIComponent(key);
     console.log('发送请求:', url);
 
     $.get(url)

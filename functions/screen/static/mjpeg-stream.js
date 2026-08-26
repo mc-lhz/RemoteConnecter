@@ -1,4 +1,4 @@
-var streamUrl = '/screen/screenshot/api/stream';
+var streamUrl = '/screenshot/api/stream';
 
 var streamImg = document.getElementById('mjpeg-stream');
 var fpsDisplay = document.getElementById('fps-display');
