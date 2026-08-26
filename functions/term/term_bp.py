@@ -12,7 +12,7 @@
 cmd 可为任意支持终端的程序, 例如: cmd / powershell / python 等。
 
 整合到主项目只需:
-    from term.term_bp import term_bp, sock
+    from functions.term.term_bp import term_bp, sock
     app.register_blueprint(term_bp)
     sock.init_app(app)
 """

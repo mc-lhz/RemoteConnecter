@@ -110,12 +110,12 @@ import ctypes
 from flask import Flask
 import Logcat
 from utils import *
-from main.main_bp import main_bp
-from main.file_bp import file_bp
-from screen.screen_bp import screen_bp
-from update.update_bp import update_bp
-from bilimusic.bilimusic_bp import bilimusic_bp
-from term.term_bp import term_bp, sock  # 终端 (WS / ConPTY)
+from functions.main.main_bp import main_bp
+from functions.main.file_bp import file_bp
+from functions.screen.screen_bp import screen_bp
+from functions.update.update_bp import update_bp
+from functions.bilimusic.bilimusic_bp import bilimusic_bp
+from functions.term.term_bp import term_bp, sock  # 终端 (WS / ConPTY)
 # ---- Windows DPI 感知设置 (必须在最开始设置) ----
 if sys.platform == 'win32':
     try:
@@ -145,7 +145,7 @@ def root():
 @app.route('/shared/static/<path:filename>')
 def sharedStatic(filename):
     from flask import send_from_directory
-    return send_from_directory(resourcePath('shared/static'), filename)
+    return send_from_directory(resourcePath('functions/shared/static'), filename)
 
 
 # ---- 注册蓝图 ----
