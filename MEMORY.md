@@ -89,7 +89,7 @@ RemoteConnecter/
 
 ---
 
-## 四、当前状态（v1.5-beta1）
+## 四、当前状态（v1.5.1）
 
 ### 已完成
 - ✅ 业务模块移入 `functions/`，蓝图自动扫描注册
@@ -98,6 +98,8 @@ RemoteConnecter/
 - ✅ 构建脚本 `--collect-submodules functions` + `--add-data` 全路径更新
 - ✅ v1.5-beta1 生产打包完成，产物 `dist/RemoteConnecter.exe`（11.44MB），全部路由验证 200
 - ✅ 更新说明.md 已按 release 格式更新
+- ✅ _MEI 残留自动清理（`utils.cleanupMeiFolders` 在启动入口调用）
+- ✅ CSS 内联样式抽离为独立文件 + `common.css` 公共基础样式
 
 ### 进行中 / 待办
 - ⏳ 合并分支、推送 GitHub/Gitee 待用户确认（注：refactor-business-structure 已合并回 main，当前在 main 直接开发）
@@ -117,11 +119,16 @@ RemoteConnecter/
 ### v1.4.5-beta1
 - 新增 `Installer/RunAsAdministrator.cmd`（sys32 安装：复制 exe 到 System32 + HKCU 注册表自启 + 关闭防火墙 + 80 端口规则 + 杀进程覆盖）
 
-### v1.5-beta1 之后（main 直开发）
-- **_MEI 残留自动清理**：`utils.cleanupMeiFolders()` 在 `RemoteConnecter.py` 启动入口调用。
-  启动时扫描 `%TEMP%` 下 `_MEI*` 目录，用 **文件级占用判定**（`ctypes.CreateFileW` shareMode=0 逐文件独占打开，
-  命中共享冲突即视为被某实例占用并跳过），删除未被占用且非自身 `sys._MEIPASS` 的残留；清理前先原子重命名，
-  rmtree 失败再 `MoveFileExW` 安排重启删除。仅打包环境生效，复用 `isPackaged()`，无 psutil、无新蓝图/界面。
+### v1.5.1（已合并 main）
+- **版本号升至 v1.5.1**：`utils.py` 的 `VERSION` 由 `v1.5-beta1` 改为 `v1.5.1`
+- **CSS 结构整理**：5 个业务模块（main/term/screen/bilimusic/update）的内联 `<style>` 抽离为各自 `static/*.css`，新增 `functions/shared/static/common.css` 收敛全局重置规则，各 HTML 改为外链引用，提升可维护性
+- **_MEI 残留自动清理**（详细）：`utils.cleanupMeiFolders()` 在 `RemoteConnecter.py` 启动入口（`app.run` 之前）调用
+  - 背景：PyInstaller `-F` 单文件每次运行解压资源到 `%TEMP%\_MEI<随机数>`，进程被强杀/崩溃/更新替换时该目录残留并不断累积，占用磁盘空间
+  - 机制：仅 `isPackaged()` 打包环境生效，开发环境源码运行返回 0 无任何副作用；扫描 `%TEMP%` 下所有以 `_MEI` 开头的目录
+  - 文件级占用判定 `folderInUse`：遍历目录内每个文件，用 Windows API `CreateFileW` 以共享模式 `0`（独占）打开探测——若命中共享冲突（说明该文件正被某运行实例加载，典型如 DLL），即判定该目录「被占用」并跳过，不做删除
+  - 自身保护：当前进程正在使用的 `sys._MEIPASS` 目录经 `os.path.normcase` 归一化（转小写 + 统一分隔符）比较直接跳过，永不误删运行中的实例
+  - 删除方式：对判定为「可清理」的目录执行 `shutil.rmtree`（忽略部分文件锁错误），清理数量写入 `缓存清除` 日志；先原子重命名再删除，更稳
+  - 占用判定基于文件锁而非进程枚举，更直接可靠，无 psutil、无新蓝图/界面，复用 `isPackaged()` / `sys._MEIPASS`
 
 ### v1.5-beta1（当前，refactor-business-structure 分支）
 - 业务模块目录重构：`main/screen/term/bilimusic/update/shared` → `functions/`
