@@ -26,7 +26,7 @@ function putFileBox(filePath, fileJson, fileGrid) {
                     fileBox.classList.add('file-box');
                     fileBox.innerHTML = `<i class="file-icon">📄</i><div>${item["path"]}</div>`;
                     fileBox.addEventListener('click', function() {
-                        window.location.href = `/download?path=${this.querySelector('div').textContent}`;
+                        window.open(`/download?path=${this.querySelector('div').textContent}`);
                     });
                     fileGrid.appendChild(fileBox);
                 }
