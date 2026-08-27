@@ -100,8 +100,10 @@ RemoteConnecter/
 - ✅ 更新说明.md 已按 release 格式更新
 
 ### 进行中 / 待办
-- ⏳ `refactor-business-structure` 分支（当前工作分支）**未合并回 main、未推送远程**
-- ⏳ 合并分支、推送 GitHub/Gitee 待用户确认
+- ⏳ 合并分支、推送 GitHub/Gitee 待用户确认（注：refactor-business-structure 已合并回 main，当前在 main 直接开发）
+
+### 踩坑记录（打包相关）
+- bilimusic 的 ffmpeg 路径：`FFMPEG_PATH = resourcePath('bin/ffmpeg.exe')` 在打包后解析为 `_MEIPASS/bin/ffmpeg.exe`。build 脚本 `--add-binary` 的目标目录必须与之一致：必须用 `bin\ffmpeg.exe;bin`（目标 `bin`），**不能**用 `bin\ffmpeg.exe;.`（目标根，会导致 ffmpeg 落在 `_MEIPASS/ffmpeg.exe`，代码找不到 → 回退系统 PATH → 学校电脑无 ffmpeg → 播放报 `[WinError 2] The system cannot find the file specified`）。两个 build 脚本（product/develop）均已改为 `;bin`。
 
 ---
 
