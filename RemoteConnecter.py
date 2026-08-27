@@ -7,6 +7,8 @@ import importlib
 import pkgutil
 from flask import Flask, Blueprint
 import Logcat
+Log = Logcat.Logcat()
+
 from utils import *
 import functions
 # ---- Windows DPI 感知设置 (必须在最开始设置) ----
@@ -68,6 +70,9 @@ def discoverAndRegisterBlueprints(app):
 
 discoverAndRegisterBlueprints(app)
 # ---- 启动 ----
+
 if __name__ == '__main__':
-    Logcat.Logcat().i('Main', getPythonVersion())
+    # 清理 _MEI 残留目录
+    cleanupMeiFolders()
+    Log.i('Main', getPythonVersion())
     app.run(host='0.0.0.0', port=80, debug=True, use_reloader=True)

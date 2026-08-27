@@ -117,6 +117,12 @@ RemoteConnecter/
 ### v1.4.5-beta1
 - 新增 `Installer/RunAsAdministrator.cmd`（sys32 安装：复制 exe 到 System32 + HKCU 注册表自启 + 关闭防火墙 + 80 端口规则 + 杀进程覆盖）
 
+### v1.5-beta1 之后（main 直开发）
+- **_MEI 残留自动清理**：`utils.cleanupMeiFolders()` 在 `RemoteConnecter.py` 启动入口调用。
+  启动时扫描 `%TEMP%` 下 `_MEI*` 目录，用 **文件级占用判定**（`ctypes.CreateFileW` shareMode=0 逐文件独占打开，
+  命中共享冲突即视为被某实例占用并跳过），删除未被占用且非自身 `sys._MEIPASS` 的残留；清理前先原子重命名，
+  rmtree 失败再 `MoveFileExW` 安排重启删除。仅打包环境生效，复用 `isPackaged()`，无 psutil、无新蓝图/界面。
+
 ### v1.5-beta1（当前，refactor-business-structure 分支）
 - 业务模块目录重构：`main/screen/term/bilimusic/update/shared` → `functions/`
 - 蓝图自动扫描注册（`discoverAndRegisterBlueprints`）

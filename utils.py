@@ -14,7 +14,8 @@ import threading, time
 from urllib.parse import urlparse
 import requests
 import Logcat
-
+import ctypes
+import shutil
 Log = Logcat.Logcat()
 
 def getVersion():
@@ -31,6 +32,77 @@ def resourcePath(relativePath):
 def isPackaged():
     """是否在 PyInstaller 打包环境中运行"""
     return hasattr(sys, '_MEIPASS') or getattr(sys, 'frozen', False)
+
+def folderInUse(folderPath):
+    """文件级占用判定: 遍历目录内文件, 逐个以 shareMode=0 独占打开。
+    返回 True 表示仍被占用(有进程加载其中 DLL/文件)。仅 Windows。"""
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateFileW.restype = ctypes.c_void_p
+    kernel32.CreateFileW.argtypes = [
+        ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32,
+        ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p,
+    ]
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    invalidHandle = 0xFFFFFFFFFFFFFFFF  # INVALID_HANDLE_VALUE
+    for root, dirs, files in os.walk(folderPath):
+        for fileName in files:
+            filePath = os.path.join(root, fileName)
+            # GENERIC_READ|DELETE, shareMode=0(独占), OPEN_EXISTING
+            handle = kernel32.CreateFileW(
+                filePath, 0x80000000 | 0x00010000, 0, None, 3, 0, None
+            )
+            if handle == invalidHandle:
+                return True  # 共享冲突/权限不足, 保守视为占用
+            kernel32.CloseHandle(handle)
+    return False
+
+def cleanupMeiFolders():
+    """启动时自动清理 %TEMP% 下未被占用的 _MEI* 残留目录。
+
+    仅打包环境(isPackaged)生效；开发源码运行直接返回 0。
+    占用判定基于文件: 遍历目录内文件, 逐个以共享模式 0 独占打开(CreateFileW),
+    任一失败(共享冲突=某实例仍加载其中 DLL)即视为占用并跳过。
+    自身进程正在使用的 sys._MEIPASS 永不清理。返回清理掉的目录数。
+    """
+    if not isPackaged() or sys.platform != 'win32':
+        Log.i('缓存清除', '当前环境不是打包环境, 不执行 _MEI 目录清理')
+        return 0
+
+
+    tempDir = TEMP_DIR
+    selfMei = getattr(sys, '_MEIPASS', None)
+
+    cleanedCount = 0
+    try:
+        entries = os.listdir(tempDir)
+        Log.d('缓存清除', f'扫描目录 {tempDir} 下的文件: {entries}')
+    except OSError:
+        return 0
+
+    for name in entries:
+        if not name.startswith('_MEI'):
+            continue
+        candidatePath = os.path.join(tempDir, name)
+        if not os.path.isdir(candidatePath):
+            continue
+        # 统一路径比较是否为自身运行中的 _MEI 目录
+        if selfMei and os.path.normcase(candidatePath) == os.path.normcase(selfMei):
+            continue  # 自身运行中, 跳过
+        if folderInUse(candidatePath):
+            continue  # 布尔判定: 占用中, 跳过
+        Log.d('缓存清除', f'扫描到目录 {candidatePath}, 开始删除')
+        # 删除目录
+        try:
+            shutil.rmtree(candidatePath, ignore_errors=True)
+            Log.d('缓存清除', f'已删除 _MEI 目录 {candidatePath}')
+        except Exception:
+            Log.e('缓存清除', f'删除 _MEI 目录 {candidatePath} 失败')
+            continue
+        cleanedCount += 1
+
+    
+    Log.i('缓存清除', f'已清理 {cleanedCount} 个 _MEI 残留目录')
+    return cleanedCount
 
 
 def getPythonVersion():
