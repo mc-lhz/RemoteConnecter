@@ -1,5 +1,5 @@
 /* 远程终端页样式 */
-* { margin: 0; padding: 0; box-sizing: border-box; }
+/* 全局重置已由 /shared/static/common.css 提供 */
 html, body { width: 100%; height: 100%; overflow: hidden; background: #0d1117; }
 body {
     font-family: "Microsoft YaHei", -apple-system, sans-serif;

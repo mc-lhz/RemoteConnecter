@@ -1,0 +1,2 @@
+/* 公共基础样式 — 所有业务页面共用, 须在模块 css 之前引入 */
+* { margin: 0; padding: 0; box-sizing: border-box; }

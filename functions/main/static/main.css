@@ -1,6 +1,6 @@
 /* 学校电脑管理系统主页样式 */
-/* ====== 基础与全局重置 ====== */
-* { margin: 0; padding: 0; box-sizing: border-box; }
+/* 全局重置已由 /shared/static/common.css 提供 */
+/* ====== 基础与全局 ====== */
 body {
     font-family: "Microsoft YaHei", -apple-system, sans-serif;
     background: linear-gradient(135deg, #1a2980, #26d0ce);
