@@ -1,0 +1,25 @@
+/* 实时屏幕页样式 */
+body {
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    background-color: #ffffff;
+}
+#video-container {
+    position: relative;
+    display: inline-block;
+}
+#mjpeg-stream {
+    max-width: 100%;
+    max-height: 90vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border: 2px solid #333;
+    border-radius: 4px;
+}
+#fps-display {
+    margin-top: 10px;
+    color: #aaa;
+    font-family: monospace;
+}
