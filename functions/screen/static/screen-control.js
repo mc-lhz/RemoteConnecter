@@ -70,7 +70,7 @@ function imgToScreen(img, clientX, clientY) {
 
 function sendClick(x, y, button) {
     button = button || 'left';
-    var url = '/screen/screenshot/api/control?controlType=mouse&x=' + x + '&y=' + y + '&button=' + button;
+    var url = '/screenshot/api/control?controlType=mouse&x=' + x + '&y=' + y + '&button=' + button;
     fetch(url).then(function(r) { return r.text(); }).then(function(msg) {
         console.log('点击已发送 (' + button + '):', x, y, '→', msg);
     }).catch(function(err) {
