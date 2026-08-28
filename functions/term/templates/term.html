@@ -136,6 +136,7 @@
 
         // 回车直接连接
         document.getElementById('cmd').addEventListener('keydown', function (e) {
+            globalCmd = document.getElementById('cmd').value;
             if (e.key === 'Enter') { connect(); }
         });
     </script>
