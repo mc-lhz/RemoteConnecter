@@ -1,7 +1,7 @@
 # RemoteConnecter — AI Agent 长期维护记忆
 
 > 本文件为 AI 助手维护本项目时的长期参考。每次改动后请更新"当前状态"与"历史改动"。
-> 最后更新：2026-08-24
+> 最后更新：2026-08-30
 
 ---
 
@@ -11,7 +11,7 @@
 
 **形态**：Flask 后端 + 浏览器控制终端，打包为单文件 exe 部署在机房电脑上，通过浏览器（局域网/内网穿透）远程管理。
 
-**当前版本**：`v1.5-beta1`（见 `utils.py` 的 `VERSION`）
+**当前版本**：`v1.5.2-beta2`（见 `utils.py` 的 `VERSION`）
 
 **技术栈**：
 - 后端：Python 3.9（`python39/` 内嵌环境）、Flask 3.1.2、flask_sock（WebSocket）、pywinpty（ConPTY 终端）、pygame（音频播放）、Pillow/pyautogui（屏幕控制）
@@ -89,20 +89,21 @@ RemoteConnecter/
 
 ---
 
-## 四、当前状态（v1.5.1）
+## 四、当前状态（v1.5.2-beta2）
 
 ### 已完成
 - ✅ 业务模块移入 `functions/`，蓝图自动扫描注册
+- ✅ 主页直挂根路径 `/`（原 `/main/`，通过 `static_url_path='/main/static'` 保留静态资源 URL 不变）
 - ✅ term/screen 路由缩短为 `/terminal`、`/screenshot`
 - ✅ 无用文件清理（design.html、control.html、input-panel.js、claudecode.cmd、ffmpeg-mini.exe）
-- ✅ 构建脚本 `--collect-submodules functions` + `--add-data` 全路径更新
-- ✅ v1.5-beta1 生产打包完成，产物 `dist/RemoteConnecter.exe`（11.44MB），全部路由验证 200
-- ✅ 更新说明.md 已按 release 格式更新
-- ✅ _MEI 残留自动清理（`utils.cleanupMeiFolders` 在启动入口调用）
+- ✅ 构建脚本 `--add-data` 全路径更新
+- ✅ _MEI 残留自动清理（`utils.cleanupMeiFolders` 在启动入口调用，删除探测方案）
 - ✅ CSS 内联样式抽离为独立文件 + `common.css` 公共基础样式
+- ✅ v1.5.2-beta2 生产打包完成，双实例 + 死实例清理端到端验证通过
 
 ### 进行中 / 待办
-- ⏳ 合并分支、推送 GitHub/Gitee 待用户确认（注：refactor-business-structure 已合并回 main，当前在 main 直接开发）
+- ⏳ 构建时选择 ConPTY/WinPTY 后端（build-time-pty-backend-selection 方案已论证，未实施）：pywinpty 的 `PtyProcess.spawn(..., backend=Backend.WinPTY)` 可显式指定后端，同一份源码打 Win10/Win7 两个 exe
+- ⏳ 生产打包建议关闭 `app.run(debug=True, use_reloader=True)`（frozen 环境下 reloader 会 spawn 多进程）
 
 ### 踩坑记录（打包相关）
 - bilimusic 的 ffmpeg 路径：`FFMPEG_PATH = resourcePath('bin/ffmpeg.exe')` 在打包后解析为 `_MEIPASS/bin/ffmpeg.exe`。build 脚本 `--add-binary` 的目标目录必须与之一致：必须用 `bin\ffmpeg.exe;bin`（目标 `bin`），**不能**用 `bin\ffmpeg.exe;.`（目标根，会导致 ffmpeg 落在 `_MEIPASS/ffmpeg.exe`，代码找不到 → 回退系统 PATH → 学校电脑无 ffmpeg → 播放报 `[WinError 2] The system cannot find the file specified`）。两个 build 脚本（product/develop）均已改为 `;bin`。
@@ -119,18 +120,17 @@ RemoteConnecter/
 ### v1.4.5-beta1
 - 新增 `Installer/RunAsAdministrator.cmd`（sys32 安装：复制 exe 到 System32 + HKCU 注册表自启 + 关闭防火墙 + 80 端口规则 + 杀进程覆盖）
 
+### v1.5.2（已合并 main，当前 beta2）
+- **修复屏幕控制鼠标失效**（beta1）：`screen-control.js` 的 `sendClick` 请求路径多带 `/screen` 前缀导致 404（v1.5-beta1 路由缩短时漏改），统一为 `/screenshot/api/control`。受影响版本 v1.5-beta1~v1.5.1，升级即可修复
+- **修复终端回车连接不同步命令**（beta2）：输入框直接回车连接时先同步输入框内容到 `globalCmd`
+- **修复 _MEI 清理双实例误删**（重要）：原独占打开探测（`CreateFileW shareMode=0`）检测不到运行实例已加载 DLL 的 image section 映射（实测可成功打开但删除被拒），双开时后启动实例误删先启动实例的模板数据 → TemplateError。改为**删除探测**：尝试删除目录内 `python3*.dll`，运行实例删除必被拒（无损跳过），死实例可删（目录随即 rmtree）。已知盲区（用户接受）：onefile 解压期 dll 已写出尚未映射的数秒窗口，不设年龄宽限
+
 ### v1.5.1（已合并 main）
 - **版本号升至 v1.5.1**：`utils.py` 的 `VERSION` 由 `v1.5-beta1` 改为 `v1.5.1`
 - **CSS 结构整理**：5 个业务模块（main/term/screen/bilimusic/update）的内联 `<style>` 抽离为各自 `static/*.css`，新增 `functions/shared/static/common.css` 收敛全局重置规则，各 HTML 改为外链引用，提升可维护性
-- **_MEI 残留自动清理**（详细）：`utils.cleanupMeiFolders()` 在 `RemoteConnecter.py` 启动入口（`app.run` 之前）调用
-  - 背景：PyInstaller `-F` 单文件每次运行解压资源到 `%TEMP%\_MEI<随机数>`，进程被强杀/崩溃/更新替换时该目录残留并不断累积，占用磁盘空间
-  - 机制：仅 `isPackaged()` 打包环境生效，开发环境源码运行返回 0 无任何副作用；扫描 `%TEMP%` 下所有以 `_MEI` 开头的目录
-  - 文件级占用判定 `folderInUse`：遍历目录内每个文件，用 Windows API `CreateFileW` 以共享模式 `0`（独占）打开探测——若命中共享冲突（说明该文件正被某运行实例加载，典型如 DLL），即判定该目录「被占用」并跳过，不做删除
-  - 自身保护：当前进程正在使用的 `sys._MEIPASS` 目录经 `os.path.normcase` 归一化（转小写 + 统一分隔符）比较直接跳过，永不误删运行中的实例
-  - 删除方式：对判定为「可清理」的目录执行 `shutil.rmtree`（忽略部分文件锁错误），清理数量写入 `缓存清除` 日志；先原子重命名再删除，更稳
-  - 占用判定基于文件锁而非进程枚举，更直接可靠，无 psutil、无新蓝图/界面，复用 `isPackaged()` / `sys._MEIPASS`
+- **_MEI 残留自动清理**：`utils.cleanupMeiFolders()` 在 `RemoteConnecter.py` 启动入口（`app.run` 之前）调用。背景：PyInstaller `-F` 单文件每次运行解压资源到 `%TEMP%\_MEI<随机数>`，进程被强杀/崩溃/更新替换时残留累积。仅打包环境生效，自身 `_MEIPASS` 经 normcase 比较跳过。（初版用独占打开探测，v1.5.2 修正为删除探测，见上）
 
-### v1.5-beta1（当前，refactor-business-structure 分支）
+### v1.5-beta1（refactor-business-structure 分支，已合并 main）
 - 业务模块目录重构：`main/screen/term/bilimusic/update/shared` → `functions/`
 - 蓝图自动扫描注册（`discoverAndRegisterBlueprints`）
 - 路由缩短：`/term/terminal`→`/terminal`、`/screen/screenshot`→`/screenshot`
@@ -170,6 +170,7 @@ build-develop.cmd
 
 ## 七、已知问题 / 注意事项
 
+- **Windows 文件占用探测**（_MEI 清理实测结论，2026-08-29）：对运行实例已加载的 DLL（image section 映射），独占打开（`CreateFileW shareMode=0`）和目录重命名**均探测不到**；**只有删除（`os.remove`）会被拒绝**——判定文件是否被运行实例占用必须用删除探测
 - `bilimusic`、`update` 的 `/` 页面路由带斜杠访问（`/bilimusic/`、`/update/`），不带斜杠会 308 重定向（浏览器自动跟随，功能正常）
 - `file_bp` 无独立页面/JS，功能内嵌在 main 的 index.html，归属 `functions/main/`，不含 templates/static
 - Installer 目录曾有一份重复 Logcat.py，注意与根目录保持一致

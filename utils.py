@@ -74,6 +74,7 @@ def cleanupMeiFolders():
                     break
         except OSError:
             continue
+        # 如果目录未被占用实例, 则删除
         if inUse:
             Log.d('缓存清除', f'目录 {candidatePath} 仍被运行实例占用, 跳过')
             continue
