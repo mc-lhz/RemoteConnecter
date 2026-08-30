@@ -256,7 +256,7 @@ del "%~f0"
         return True, "更新成功"
 
     else:
-        Log.i('更新', '开发环境，仅下载')
+        Log.w('更新', '开发环境，仅下载')
         return True, "开发环境，仅下载"
 
 
