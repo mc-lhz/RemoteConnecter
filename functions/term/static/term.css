@@ -41,7 +41,14 @@ body {
     cursor: pointer;
 }
 #connect.disconnect { background: #da3633; }
-#status { font-size: 13px; color: #8b949e; }
+#status {
+    font-size: 13px;
+    color: #8b949e;
+    min-width: 0;              /* 允许 flex 子项收缩到内容宽度以下 */
+    white-space: nowrap;       /* 禁止换行，杜绝撑高 */
+    overflow: hidden;
+    text-overflow: ellipsis;   /* 超长时省略号 */
+}
 #status.ok { color: #3fb950; }
 #status.err { color: #f85149; }
 #terminal {
@@ -67,3 +74,8 @@ body {
 }
 .preset-command img { width: 22px; height: 22px; display: block; }
 .preset-command span { font-size: 12px; }
+
+@media (max-width: 640px) {
+    .hint { display: none; }   /* 装饰性提示，窄屏隐藏省空间 */
+    #cmd { min-width: 0; }     /* 解除 120px 下限，让输入框可压缩，避免整行溢出 */
+}

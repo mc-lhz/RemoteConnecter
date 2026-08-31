@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # 软件版本号
-VERSION = 'v1.5.2-beta3'
+VERSION = 'v1.5.2'
 
 """工具库 — 路径适配、环境检测、文件浏览、自动更新"""
 
@@ -14,8 +14,10 @@ import threading, time
 from urllib.parse import urlparse
 import requests
 import Logcat
-import shutil
 Log = Logcat.Logcat()
+
+import shutil
+
 
 def getVersion():
     return VERSION
