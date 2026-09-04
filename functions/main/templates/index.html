@@ -59,9 +59,9 @@
 
                 <div class="card">
                     <h2>文件下载中心</h2>
-                    <button id="return-btn" class="file-btn">返回上级</button>
-                    <button id="upload-btn" class="file-btn">本地上传</button>
-                    <button id="remote-upload-btn" class="file-btn">远程上传</button>
+                    <button id="return-btn" class="action-btn">返回上级</button>
+                    <button id="upload-btn" class="action-btn">本地上传</button>
+                    <button id="remote-upload-btn" class="action-btn">远程上传</button>
                     <input type="checkbox" id="execute-checkbox" class="execute-checkbox">
                     <label for="execute-checkbox">上传并执行</label>
                     <input type="checkbox" id="tempdir-checkbox" class="tempdir-checkbox">
@@ -106,7 +106,7 @@
             <!-- 命令执行页 -->
             <div id="command" class="tab-content">
                 <div class="card">
-                    <h2>命令执行终端</h2>
+                    <h2>命令执行</h2>
                     <input type="text" class="command-input" placeholder="输入命令 (如: ipconfig, systeminfo)">
                     <button class="execute-btn">执行命令</button>
                     <div class="output">
@@ -117,7 +117,11 @@
             <!-- 嵌入式终端 -->
             <div id="term" class="tab-content">
                 <div class="card">
-                    <h2>终端</h2>
+                    <h2>
+                        终端
+                        <button id="term-btn" class="action-btn" onclick="window.open('/terminal', '_blank')">打开全屏终端</button>
+                    </h2>
+                    
                     <iframe id="term-container" src="/terminal" frameborder="0" allowtransparency="true"></iframe>
                 </div>
             </div>

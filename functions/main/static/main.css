@@ -187,7 +187,7 @@ body {
 
 .file-name { font-size: 16px; font-weight: bold; }
 .file-size { font-size: 14px; color: #888; margin-top: 5px; }
-.file-btn {
+.action-btn {
     background: #4CAF50;
     color: white;
     padding: 10px 20px;
@@ -197,7 +197,12 @@ body {
     cursor: pointer;
     margin-bottom: 10px;
 }
-.file-btn:hover { background: #388E3C; }
+.action-btn:hover { background: #388E3C; }
+
+#term-btn {
+    margin-left: 20px;
+    margin-top: 10px;
+}
 
 .control-btn {
     background: linear-gradient(135deg, #2196F3, #1976D2);
