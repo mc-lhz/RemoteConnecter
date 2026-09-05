@@ -1,0 +1,115 @@
+// 全局变量存储待连接终端命令
+let globalCmd = '';
+
+const term = new Terminal({
+    cursorBlink: true,
+    fontFamily: 'Consolas, "Courier New", monospace',
+    fontSize: 14,
+    theme: {
+        background: '#0d1117',
+        foreground: '#c9d1d9',
+        cursor: '#58a6ff',
+        selectionBackground: '#264f78'
+    }
+});
+const fit = new FitAddon.FitAddon();
+term.loadAddon(fit);
+term.open(document.getElementById('terminal'));
+fit.fit();
+
+let ws = null;
+const statusEl = document.getElementById('status');
+const btn = document.getElementById('connect');
+
+function setStatus(text, cls) {
+    statusEl.textContent = text;
+    statusEl.className = cls || '';
+}
+
+function connect() {
+    const cmd = globalCmd;
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const url = proto + '://' + location.host + '/terminal/api/ws?cmd=' + encodeURIComponent(cmd);
+    setStatus('连接中...');
+    ws = new WebSocket(url);
+
+    ws.onopen = function () {
+        setStatus('已连接: ' + cmd, 'ok');
+        btn.textContent = '断开';
+        btn.classList.add('disconnect');
+
+        // 同步终端尺寸
+        term.reset();
+        sendResize();
+    };
+    ws.onmessage = function (e) {
+        try {
+            const obj = JSON.parse(e.data);
+            if (obj.type === 'exit') {
+                term.write('\r\n\x1b[90m[进程已退出 code=' + (obj.code === null ? '?' : obj.code) + ']\x1b[0m\r\n');
+                disconnect();
+            } else if (obj.type === 'error') {
+                term.write('\r\n\x1b[31m[错误] ' + obj.msg + '\x1b[0m\r\n');
+                disconnect();
+            }
+        } catch (err) {
+            term.write(e.data);
+        }
+    };
+    ws.onclose = function (e) {
+        if (ws) { ws = null; }
+        btn.textContent = '连接';
+        btn.classList.remove('disconnect');
+        if (e.reason) {
+            setStatus('已断开: ' + e.reason + ' (code ' + e.code + ')', 'err');
+        } else if (e.code === 1000) {
+            setStatus('已断开', '');
+        } else {
+            setStatus('连接断开 (code ' + e.code + ')', 'err');
+        }
+    };
+    ws.onerror = function () {
+        setStatus('连接出错', 'err');
+    };
+}
+
+function disconnect() {
+    if (ws) {
+        try { ws.close(); } catch (e) { /* ignore */ }
+        ws = null;
+    }
+    btn.textContent = '连接';
+    btn.classList.remove('disconnect');
+    setStatus('已断开');
+}
+
+btn.addEventListener('click', function () {
+    if (ws && ws.readyState <= 1) { disconnect(); }
+    else {
+        // 输入框内容作为连接命令
+        globalCmd = document.getElementById('cmd').value;
+        connect();
+    }
+});
+
+term.onData(function (d) {
+    if (ws && ws.readyState === 1) { ws.send(d); }
+});
+
+// 终端尺寸同步：窗口变化 → fit 重算 → 自动触发 onResize → 后端同步
+function sendResize() {
+    if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+    }
+}
+term.onResize(sendResize);
+window.addEventListener('resize', function () {
+    try { fit.fit(); } catch (e) { /* ignore */ }
+    sendResize();
+});
+
+// 回车直接连接
+document.getElementById('cmd').addEventListener('keydown', function (e) {
+    globalCmd = document.getElementById('cmd').value;
+    if (e.key === 'Enter') { connect(); }
+});
