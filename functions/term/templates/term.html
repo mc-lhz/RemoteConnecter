@@ -69,6 +69,8 @@
                 btn.textContent = '断开';
                 btn.classList.add('disconnect');
                 term.reset();
+                // 同步终端尺寸
+                sendResize()
             };
             ws.onmessage = function (e) {
                 try {
