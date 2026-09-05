@@ -124,14 +124,16 @@
             if (ws && ws.readyState === 1) { ws.send(d); }
         });
 
-        term.onResize(function (dim) {
+        // 终端尺寸同步：窗口变化 → fit 重算 → 自动触发 onResize → 后端同步
+        function sendResize() {
             if (ws && ws.readyState === 1) {
-                ws.send(JSON.stringify({ type: 'resize', cols: dim.cols, rows: dim.rows }));
+                ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
             }
-        });
-
+        }
+        term.onResize(sendResize);
         window.addEventListener('resize', function () {
             try { fit.fit(); } catch (e) { /* ignore */ }
+            sendResize();
         });
 
         // 回车直接连接
