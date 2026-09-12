@@ -113,3 +113,11 @@ document.getElementById('cmd').addEventListener('keydown', function (e) {
     globalCmd = document.getElementById('cmd').value;
     if (e.key === 'Enter') { connect(); }
 });
+
+// 发送控制键序列 (ESC, Ctrl+C, 方向键, Tab 等)
+// 发送原始 VT 序列，后端 _decodeFrame 会自动回落到 PTY write 路径
+function sendControlKey(seq) {
+    if (ws && ws.readyState === 1) {
+        ws.send(seq);
+    }
+}

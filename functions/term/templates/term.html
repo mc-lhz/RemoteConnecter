@@ -25,7 +25,22 @@
         <span class="hint">任意支持终端的 exe 均可</span>
     </div>
     <div id="terminal"></div>
-
+    <!-- 控制键区：Ctrl+C，方向键，Tab，ESC -->
+    <div id="control-keys">
+        <!-- Ctrl+C - 中断 -->
+        <button class="preset-command" title="Ctrl+C (中断)" onclick="sendControlKey('\x03')">
+            <span>Ctrl+C</span>
+        </button>
+        <!-- 方向键 -->
+        <button class="preset-command" title="上" onclick="sendControlKey('\x1b[A')">上</button>
+        <button class="preset-command" title="下" onclick="sendControlKey('\x1b[B')">下</button>
+        <button class="preset-command" title="左" onclick="sendControlKey('\x1b[D')">左</button>
+        <button class="preset-command" title="右" onclick="sendControlKey('\x1b[C')">右</button>
+        <!-- Tab -->
+        <button class="preset-command" title="Tab" onclick="sendControlKey('\t')">Tab</button>
+        <!-- ESC -->
+        <button class="preset-command" title="ESC" onclick="sendControlKey('\x1b')">ESC</button>
+    </div>
     <script src="/term/static/xterm.min.js"></script>
     <script src="/term/static/xterm-addon-fit.min.js"></script>
     <script src="/term/static/term.js"></script>
