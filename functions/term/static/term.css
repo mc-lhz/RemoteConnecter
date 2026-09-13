@@ -99,5 +99,13 @@ body {
 @media (max-width: 640px) {
     .hint { display: none; }
     #cmd { min-width: 0; }
-    #control-keys { display: none; } /* 窄屏隐藏，避免挤占输入框空间 */
+    /* 窄屏下控制键换行显示（原为 display:none 隐藏），不再挤占终端空间 */
+    #control-keys {
+        display: flex;
+        flex-wrap: wrap;
+    }
+    #control-keys .preset-command {
+        flex: 1 1 30%;
+        min-width: 44px;
+    }
 }
