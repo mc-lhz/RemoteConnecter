@@ -94,13 +94,13 @@ def getPluginDirs():
     # 全局级: %PROGRAMDATA%\RemoteConnecter\plugins
     programData = os.environ.get('PROGRAMDATA')
     if programData:
-        if os.path.isdir(os.path.join(programData, 'RemoteConnecter', 'plugins')):
-            pluginDirs.append(os.path.join(programData, 'RemoteConnecter', 'plugins'))
+        pluginDirs.append(os.path.join(programData, 'RemoteConnecter', 'plugins'))
     # 用户级: %APPDATA%\RemoteConnecter\plugins
     appData = os.environ.get('APPDATA')
     if appData:
-        if os.path.isdir(os.path.join(appData, 'RemoteConnecter', 'plugins')):
-            pluginDirs.append(os.path.join(appData, 'RemoteConnecter', 'plugins'))
+        pluginDirs.append(os.path.join(appData, 'RemoteConnecter', 'plugins'))
+    # 删除不存在的目录
+    pluginDirs = [d for d in pluginDirs if os.path.exists(d) and os.path.isdir(d)]
     Log.i('Main', f'插件目录列表: {pluginDirs}')
     return pluginDirs
 #2.扫描并加载所有插件文件
