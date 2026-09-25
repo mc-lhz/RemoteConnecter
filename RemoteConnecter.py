@@ -82,15 +82,15 @@ def discoverAndRegisterBlueprints(app):
     for sockInstance in sockInstances:
         sockInstance.init_app(app)
 # ---- 插件系统 ----
-#1.获取插件目录列表 [程序级, 全局级, 用户级]
+#1.获取插件目录列表 [自带插件，程序级, 全局级, 用户级]
 def getPluginDirs():
-    """插件目录列表: [程序级, 全局级, 用户级], 越靠后优先级越高"""
+    """插件目录列表: [自带插件，程序级, 全局级, 用户级], 越靠后优先级越高"""
     pluginDirs = []
-    # 程序级: 打包态 exe 同级 / 开发态项目根
+    # 自带插件: 开发态程序级目录下/打包态_MEI临时文件夹下的 plugins 子目录
+    pluginDirs.append(resourcePath('plugins'))
+    # 程序级: 打包态 exe 同级
     if isPackaged():
         pluginDirs.append(os.path.join(os.path.dirname(sys.executable), 'plugins'))
-    else:
-        pluginDirs.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plugins'))
     # 全局级: %PROGRAMDATA%\RemoteConnecter\plugins
     programData = os.environ.get('PROGRAMDATA')
     if programData:
