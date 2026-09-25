@@ -130,20 +130,20 @@ def loadPlugins(pluginDirs):
     # ---- 阶段1: 收集 + 去重 ----
     # pluginIdMap: id -> (入口绝对路径, lib路径或None)
     pluginIdMap = {}
-    for pluginDir in pluginDirs:
-        if not os.path.exists(pluginDir):
+    for pluginsDir in pluginDirs:
+        if not os.path.exists(pluginsDir):
             continue  # 目录不存在 (如用户从未创建) 是正常状态, 静默跳过
-        if not os.path.isdir(pluginDir):
-            Log.w('插件', f'[{pluginDir}] 存在但不是目录, 跳过')
+        if not os.path.isdir(pluginsDir):
+            Log.w('插件', f'[{pluginsDir}] 存在但不是目录, 跳过')
             continue
-        for entryName in sorted(os.listdir(pluginDir)):
-            pluginDirPath = os.path.join(pluginDir, entryName)
+        for pluginDirPathName in sorted(os.listdir(pluginsDir)):
+            pluginDirPath = os.path.join(pluginsDir, pluginDirPathName)
             if not os.path.isdir(pluginDirPath):
-                Log.w('插件', f'[{entryName}] 不是目录, 跳过')
+                Log.w('插件', f'[{pluginDirPathName}] 不是目录, 跳过')
                 continue  # plugin.json 模式只认目录插件
             manifestPath = os.path.join(pluginDirPath, 'plugin.json')
             if not os.path.isfile(manifestPath):
-                Log.e('插件', f'[{entryName}] 缺少 plugin.json, 跳过')
+                Log.e('插件', f'[{pluginDirPathName}] 缺少 plugin.json, 跳过')
                 continue
             try:
                 # utf-8-sig 兼容带 BOM 的文件 (记事本保存 UTF-8 默认加 BOM)
@@ -152,7 +152,7 @@ def loadPlugins(pluginDirs):
                 pluginId = manifest['id']
                 entryFile = manifest['entry']
             except (ValueError, KeyError) as e:
-                Log.e('插件', f'[{entryName}] plugin.json 无效: {e}')
+                Log.e('插件', f'[{pluginDirPathName}] plugin.json 无效: {e}')
                 continue
             entryPath = os.path.join(pluginDirPath, entryFile)
             if not os.path.isfile(entryPath):
@@ -183,11 +183,13 @@ def loadPlugins(pluginDirs):
 
 
 # ---- 启动 ----
-
 if __name__ == '__main__':
     # 清理 _MEI 残留目录
     cleanupMeiFolders()
     # 加载插件
-    discoverAndRegisterBlueprints(app)
+    try:
+        discoverAndRegisterBlueprints(app)
+    except Exception as e:
+        Log.e('插件', f'插件宿主报错: {e}')
     Log.i('Main', getPythonVersion())
     app.run(host='0.0.0.0', port=80, debug=True, use_reloader=True)

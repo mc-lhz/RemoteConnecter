@@ -29,8 +29,9 @@ def index():
     mem = psutil.virtual_memory()
     memory = f'{mem.percent}%   可用: {mem.available}'
 
-    # 像 ipconfig 一样列出所有网卡及其 IPv4 地址
+    # 像 ipconfig 一样列出所有网卡及其 IPv4 地址，169删除并放到最后
     interfaceHtmlList = []
+    deleteIPList = []
     for interface, addrs in psutil.net_if_addrs().items():
         ipv4List = [addr.address for addr in addrs if addr.family.name == 'AF_INET']
         if not ipv4List:
@@ -41,7 +42,10 @@ def index():
                 IPLine = f'{interface}: <a href="http://{ip}">{ip}</a>'
                 if ip.startswith('169'):
                     IPLine = f'<del>{IPLine}</del>'
-                interfaceHtmlList.append(IPLine)
+                    deleteIPList.append(IPLine)
+                else:
+                    interfaceHtmlList.append(IPLine)
+    interfaceHtmlList.extend(deleteIPList)
     ipString = '<br>'.join(interfaceHtmlList)
 
     return render_template(
