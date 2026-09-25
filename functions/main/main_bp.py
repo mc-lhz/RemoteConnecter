@@ -29,13 +29,20 @@ def index():
     mem = psutil.virtual_memory()
     memory = f'{mem.percent}%   可用: {mem.available}'
 
-    ipList = [
-        addr.address
-        for interface, addrs in psutil.net_if_addrs().items()
-        for addr in addrs
-        if addr.family.name == 'AF_INET'
-    ]
-    ipString = '\n'.join(ipList)
+    # 像 ipconfig 一样列出所有网卡及其 IPv4 地址
+    interfaceHtmlList = []
+    for interface, addrs in psutil.net_if_addrs().items():
+        ipv4List = [addr.address for addr in addrs if addr.family.name == 'AF_INET']
+        if not ipv4List:
+            interfaceHtmlList.append(f'{interface}: 未连接')
+        else:
+            for ip in ipv4List:
+                # 若169开头，画删除线表示私有IP
+                IPLine = f'{interface}: <a href="http://{ip}">{ip}</a>'
+                if ip.startswith('169'):
+                    IPLine = f'<del>{IPLine}</del>'
+                interfaceHtmlList.append(IPLine)
+    ipString = '<br>'.join(interfaceHtmlList)
 
     return render_template(
         'index.html',
