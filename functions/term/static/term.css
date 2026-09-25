@@ -75,37 +75,45 @@ body {
 .preset-command img { width: 22px; height: 22px; display: block; }
 .preset-command span { font-size: 12px; }
 
-/* 控制键区：横向排列的额外控制键 */
+/* 控制键区：黑色方形图标键，flex-wrap 自动换行 */
 #control-keys {
     display: flex;
-    gap: 2px;
+    flex-wrap: wrap;
+    gap: 4px;
     margin-top: 4px;
-    padding-top: 4px;
+    padding: 4px;
     border-top: 1px solid #30363d;
 }
 
-#control-keys .preset-command {
-    flex: 1;
-    padding: 4px 8px;
-    min-width: 40px;
-    font-size: 11px;
+.control-key {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: #000;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    flex: 0 0 auto;
 }
 
-/* 宽屏下可选显示更多键 */
-@media (min-width: 641px) {
-    #control-keys { display: flex; }
+.control-key svg {
+    width: 18px;
+    height: 18px;
+    display: block;
 }
+
+.control-key:hover { background: #30363d; border-color: #58a6ff; }
+.control-key:active { background: #21262d; }
 
 @media (max-width: 640px) {
-    .hint { display: none; }
-    #cmd { min-width: 0; }
-    /* 窄屏下控制键换行显示（原为 display:none 隐藏），不再挤占终端空间 */
-    #control-keys {
-        display: flex;
-        flex-wrap: wrap;
-    }
-    #control-keys .preset-command {
-        flex: 1 1 30%;
-        min-width: 44px;
-    }
+    .hint { display: none; }      /* 装饰性提示，窄屏隐藏省空间 */
+    #cmd { min-width: 0; }        /* 解除 120px 下限，让输入框可压缩，避免整行溢出 */
+    .control-key { width: 40px; height: 40px; }   /* 触控目标加大，方便手指点按 */
 }

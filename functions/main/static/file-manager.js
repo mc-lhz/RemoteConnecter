@@ -7,7 +7,7 @@ function getFileList(filePath, callback) {
         callback(data);
     });
 }
-
+// 填充文件列表
 function putFileBox(filePath, fileJson, fileGrid) {
     if (fileJson && fileJson["fileList"]) {
         currentPathInfo = fileJson;
@@ -55,6 +55,7 @@ function updateFileList(filePath) {
     });
 }
 
+// 处理返回按钮点击事件
 var returnBtn = document.getElementById('return-btn');
 returnBtn.addEventListener('click', function() {
     if (currentPathInfo && currentPathInfo["parentPath"]) {
