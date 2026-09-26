@@ -11,7 +11,7 @@
 
 **形态**：Flask 后端 + 浏览器控制终端，打包为单文件 exe 部署在机房电脑上，通过浏览器（局域网/内网穿透）远程管理。
 
-**当前版本**：`v1.6-beta3`（见 `utils.py` 的 `VERSION`；最新推送提交 `142d50b`）
+**当前版本**：`v1.6-beta3`（见 `utils.py` 的 `VERSION`；最新推送提交 `ab9c52d`；git tag 最新 `v1.6-beta2`，v1.6-beta3 尚未打 tag）
 
 **技术栈**：
 - 后端：Python 3.9（`python39/` 内嵌环境）、Flask 3.1.2、flask_sock（WebSocket）、pywinpty（ConPTY 终端）、pygame（音频播放）、Pillow/pyautogui（屏幕控制）
@@ -144,16 +144,32 @@ RemoteConnecter/
 - ✅ v1.6-beta3：`getPluginDirs` 目录过滤统一为尾部列表推导；版本号 v1.6-beta3
 - ✅ v1.6（`142d50b`）：宿主抽离——`hosts/` 包（blueprintHost + pluginHost），主入口瘦身至 44 行；25 条路由全量测试通过；build-product.cmd 补 hosts hidden-import
 - ✅ MEMORY.md 整合插件系统/宿主抽离全部经验；删除 `.trae/documents/` 计划文档与 `.claude/`（2026-09-26）
+- ✅ **v1.6-beta3 打包态全量验证（2026-09-26）**：build-product.cmd 打包成功（exe 约 20.6MB）；exe 同级放 `plugins/sample`+`plugins/proxy`，23/23 路由全过（15 条内置蓝图 + MJPEG 流 HEAD 200 + 4 条插件路由 + `/shared/static/common.css` + POST 路由存在性 405/400/415）；首页确认显示 `v1.6-beta3`；reloader 双进程在 exe 下同样生效（3 进程：onefile 父 + reloader 父子）
 
 ### 进行中 / 待办
+
+#### 产品功能（来源：GitHub release v1.5.3-beta2 的 Todo List，2 项已完成）
+- ⏳ 文件列表改为仅显示文件名（顶部显示当前文件夹路径），不再显示完整路径
+- ⏳ 优化实时屏幕，提升公网访问流畅性
+- ⏳ 修复实时屏幕部分按键不可用的 Bug
+- ⏳ 远程终端多终端支持 + 断线重连
+- ⏳ 终端图标改为动态获取，不再使用静态资源
+- ⏳ 加入以 Monaco Editor 为核心的代码编辑器
+- ✅ 加入插件功能（v1.6-beta1 已实现）
+- ✅ 加入 proxy 功能（proxy 插件已存在并验证）
+
+#### 工程/打包
 - ⏳ 官方插件打包方案（内嵌 `--add-data "officialPlugins;plugins"` + 启动时按 version 同步解压到程序级）已设计未实施
-- ⏳ 打包态验证四级插件（`_MEI/plugins` 依赖 `--add-data`，当前 build 脚本未加该行，打包后自带层会静默缺失）
+- ⏳ 官方插件内嵌（`_MEI/plugins` 依赖 `--add-data "officialPlugins;plugins"`，当前 build 脚本未加该行，打包后自带层静默缺失）；四级加载打包态已验证（程序级 exe 同级 plugins 实测生效，自带层待上述实施后验证）
 - ⏳ `.gitignore` 缺 `plugins/`（运行时插件目录未忽略，有误入库风险）
 - ⏳ `functions/update/repoUpdate.py`（未跟踪草稿）：仓库更新器，有 bug（`downloadUpdater` 引用未定义的 `availableNodes`，`getRelease()` 返回值未用）
 - ⏳ 生产打包建议关闭 `app.run(debug=True, use_reloader=True)`（frozen 环境下 reloader 会 spawn 双进程：Werkzeug 父子模型导致整脚本执行两遍、插件加载两遍、exe 双份 _MEI 解压；debug=True 的交互式调试器还有任意代码执行风险）
 - ⏳ 构建时选择 ConPTY/WinPTY 后端（build-time-pty-backend-selection 方案已论证，未实施）：pywinpty 的 `PtyProcess.spawn(..., backend=Backend.WinPTY)` 可显式指定后端，同一份源码打 Win10/Win7 两个 exe
 
-### 踩坑记录（打包相关）
+### 踩坑记录（打包/测试相关）
+- **MJPEG 流路由测试陷阱**：`/screenshot/api/stream` 是无限流，`Invoke-WebRequest` 全量 GET 会一直读到连接关闭（实测读了 900MB+ 才超时）；全量路由测试必须改用 `HEAD` 请求验证状态码 + Content-Type
+- **PowerShell 5.1 异常状态码**：`$_.Exception.Response.StatusCode` 直接 `[int]` 强转会报 `Cannot convert ... to System.Int32`（值是字符串如 '405'），需先 `[string]` 再转或取首段数字
+- **PSReadLine 长命令渲染异常**：终端内联超长命令会触发 `ArgumentOutOfRangeException` 刷屏，不影响实际执行；稳妥做法是写临时 .ps1 用 `powershell -NoProfile -ExecutionPolicy Bypass -File` 执行，测完删除
 - bilimusic 的 ffmpeg 路径：`FFMPEG_PATH = resourcePath('bin/ffmpeg.exe')` 在打包后解析为 `_MEIPASS/bin/ffmpeg.exe`。build 脚本 `--add-binary` 的目标目录必须与之一致：必须用 `bin\ffmpeg.exe;bin`（目标 `bin`），**不能**用 `bin\ffmpeg.exe;.`（目标根，会导致 ffmpeg 落在 `_MEIPASS/ffmpeg.exe`，代码找不到 → 回退系统 PATH → 学校电脑无 ffmpeg → 播放报 `[WinError 2] The system cannot find the file specified`）。两个 build 脚本（product/develop）均已改为 `;bin`。
 
 ---
@@ -250,3 +266,15 @@ build-develop.cmd
 3. **机房/教学管理**：课堂控制、定时任务、行为审计、电源/桌面策略
 4. **系统/架构**：多客户端统一面板、告警推送、HTTPS + 内网穿透 + 二维码访问、移动端 PWA
 5. **插件生态**（v1.6 基础已就绪）：官方插件库、插件管理页（启用/禁用/更新）、插件市场/远程分发
+
+---
+
+## 九、GitHub Releases 速查（2026-09-26 抓取）
+
+- **v1.5.3-beta2**（Pre-release）：终端 Termux 风格控制键；**其中列出的 Todo List 即上方"产品功能待办"的来源**
+- **v1.5.3-beta1**（Pre-release）：xterm.js 本地化去 CDN、resize 重构、`file-btn`→`action-btn`
+- **v1.5.3**（正式版）：169.254 划线置底 + 控制键方形图标；release 声明插件功能已完成待下版正式发布
+- **v1.6-beta1**（Pre-release）：插件系统核心（目录/清单/契约/容错完整文档）+ 首页网卡 IP 列表
+- **v1.6-beta2**（Pre-release）：插件系统完善（四级目录覆盖、static/templates/lib、单插件失败不阻断）
+- 发布地址：`https://github.com/mc-lhz/RemoteConnecter/releases`（gitee 同步）
+- 发版惯例：beta 为 Pre-release，正式版不带 Pre 标记；CHANGELOG 含 新增/优化/修复/注意/升级说明 分段
