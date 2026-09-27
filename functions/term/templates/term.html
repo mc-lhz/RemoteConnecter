@@ -21,12 +21,26 @@
         </button>
         <input id="cmd" value="" placeholder="自定义终端程序命令 如diskpart" spellcheck="false" autocomplete="off">
         <button id="connect">连接</button>
-        <span id="status">未连接</span>
+        <span id="status" title="单击 显示/隐藏控制键">未连接</span>
         <span class="hint">任意支持终端的 exe 均可</span>
     </div>
     <div id="terminal"></div>
     <!-- 控制键区：黑色方形图标键，排不下自动换行 -->
     <div id="control-keys">
+        <!-- ESC -->
+        <button class="control-key" title="ESC" onclick="sendControlKey('\x1b')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="1.5" y="3.5" width="13" height="9" rx="1.5"/>
+                <text x="8" y="9.8" text-anchor="middle" font-size="6.5" font-family="Consolas, monospace" fill="currentColor" stroke="none">ESC</text>
+            </svg>
+        </button>
+        <!-- Tab -->
+        <button class="control-key" title="Tab" onclick="sendControlKey('\t')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="1.5" y="3.5" width="13" height="9" rx="1.5"/>
+                <text x="8" y="9.8" text-anchor="middle" font-size="6.5" font-family="Consolas, monospace" fill="currentColor" stroke="none">TAB</text>
+            </svg>
+        </button>
         <!-- Ctrl+C 中断 -->
         <button class="control-key" title="Ctrl+C (中断)" onclick="sendControlKey('\x03')">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -39,17 +53,10 @@
         <button class="control-key" title="下" onclick="sendControlKey('\x1b[B')">↓</button>
         <button class="control-key" title="左" onclick="sendControlKey('\x1b[D')">←</button>
         <button class="control-key" title="右" onclick="sendControlKey('\x1b[C')">→</button>
-        <!-- Tab -->
-        <button class="control-key" title="Tab" onclick="sendControlKey('\t')">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M1.5 8h9M7 3.5l4 4.5-4 4.5"/>
-            </svg>
-        </button>
-        <!-- ESC -->
-        <button class="control-key" title="ESC" onclick="sendControlKey('\x1b')">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="2" y="3" width="12" height="10" rx="1"/>
-                <path d="M7.5 6l-2 2 2 2M10.5 6l-2 2 2 2"/>
+        <!-- Enter（先下后左箭头，svgrepo 533683） -->
+        <button class="control-key" title="Enter" onclick="sendControlKey('\r')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 7V8.2C20 9.88016 20 10.7202 19.673 11.362C19.3854 11.9265 18.9265 12.3854 18.362 12.673C17.7202 13 16.8802 13 15.2 13H4M4 13L8 9M4 13L8 17"/>
             </svg>
         </button>
     </div>

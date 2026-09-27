@@ -84,6 +84,7 @@ body {
     padding: 4px;
     border-top: 1px solid #30363d;
 }
+#control-keys.hidden { display: none; }
 
 .control-key {
     position: relative;

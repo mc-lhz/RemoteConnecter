@@ -26,6 +26,20 @@ function setStatus(text, cls) {
     statusEl.className = cls || '';
 }
 
+// 单击状态文字 → 切换控制键区显示/隐藏（标记挂在 #control-keys 上，避免被 setStatus 重写 className 清掉）
+const controlKeys = document.getElementById('control-keys');
+const KEYS_PREF_KEY = 'showControlKeys';
+if (localStorage.getItem(KEYS_PREF_KEY) === '0') {
+    controlKeys.classList.add('hidden');
+}
+statusEl.addEventListener('click', function () {
+    controlKeys.classList.toggle('hidden');
+    localStorage.setItem(KEYS_PREF_KEY, controlKeys.classList.contains('hidden') ? '0' : '1');
+    // 刷新终端尺寸
+    fit.fit();
+    sendResize();
+});
+
 function connect() {
     const cmd = globalCmd;
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
