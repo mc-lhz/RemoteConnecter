@@ -11,7 +11,7 @@
 
 **形态**：Flask 后端 + 浏览器控制终端，打包为单文件 exe 部署在机房电脑上，通过浏览器（局域网/内网穿透）远程管理。
 
-**当前版本**：`v1.6-beta3`（见 `utils.py` 的 `VERSION`；最新推送提交 `ab9c52d`；git tag 最新 `v1.6-beta2`，v1.6-beta3 尚未打 tag）
+**当前版本**：`v1.6`（见 `utils.py` 的 `VERSION`，用户已从 v1.6-beta3 转正；最新推送提交 `b01e07f`；git tag 最新 `v1.6-beta2`，v1.6 尚未打 tag）
 
 **技术栈**：
 - 后端：Python 3.9（`python39/` 内嵌环境）、Flask 3.1.2、flask_sock（WebSocket）、pywinpty（ConPTY 终端）、pygame（音频播放）、Pillow/pyautogui（屏幕控制）
@@ -48,8 +48,7 @@ RemoteConnecter/
 ├── upx/                    # UPX 压缩工具
 ├── python39/               # 内嵌 Python 3.9 环境（打包用）
 ├── Installer/              # 安装器（含 RunAsAdministrator.cmd、sys32 安装脚本）
-├── build-product.cmd       # 生产打包（-F + hide-console + UPX + 全资源 + hosts hidden-import）
-├── build-develop.cmd       # 开发打包
+├── build.cmd               # 唯一打包入口（纯 cmd，自动扫描蓝图/数据；生产隐藏黑窗，传 --show-console 调试）
 ├── 更新说明.md             # 各版本更新日志
 └── MEMORY.md               # 本文件
 ```
@@ -63,7 +62,7 @@ RemoteConnecter/
 - `hosts/blueprintHost.py` — 内置蓝图宿主：`discoverBuiltinBlueprints(app)` 用 pkgutil 扫描 `functions/`（PYZ 兼容）返回 sock 列表；`registerModuleBlueprints(app, module)` 注册 `*_bp` 变量并收集 sock；`initSockInstances(app, sockInstances)` 统一 `init_app`
 - `hosts/pluginHost.py` — 插件宿主：`getPluginDirs()` 返回四级目录列表、`loadPlugins(pluginDirs)` 收集+加载、`loadAndRegisterPlugins(app)` 一站式入口（返回插件 sock 列表）
 - 主入口启动串联：`sockInstances = discoverBuiltinBlueprints(app)` → `sockInstances += loadAndRegisterPlugins(app)` → `initSockInstances(app, sockInstances)`，整体 try/except 兜底不阻断启动
-- **打包注意**：`build-product.cmd` 必须显式 `--hidden-import hosts.blueprintHost hosts.pluginHost`
+- **打包注意**：`build.cmd` 必须显式 `--hidden-import hosts.blueprintHost hosts.pluginHost`
 
 ### 2. 蓝图自动扫描注册（内置模块）
 `discoverBuiltinBlueprints` 扫描 `functions/` 下所有业务包中的 `*_bp.py` 并自动注册。
@@ -145,6 +144,9 @@ RemoteConnecter/
 - ✅ v1.6（`142d50b`）：宿主抽离——`hosts/` 包（blueprintHost + pluginHost），主入口瘦身至 44 行；25 条路由全量测试通过；build-product.cmd 补 hosts hidden-import
 - ✅ MEMORY.md 整合插件系统/宿主抽离全部经验；删除 `.trae/documents/` 计划文档与 `.claude/`（2026-09-26）
 - ✅ **v1.6-beta3 打包态全量验证（2026-09-26）**：build-product.cmd 打包成功（exe 约 20.6MB）；exe 同级放 `plugins/sample`+`plugins/proxy`，23/23 路由全过（15 条内置蓝图 + MJPEG 流 HEAD 200 + 4 条插件路由 + `/shared/static/common.css` + POST 路由存在性 405/400/415）；首页确认显示 `v1.6-beta3`；reloader 双进程在 exe 下同样生效（3 进程：onefile 父 + reloader 父子）
+- ✅ **v1.6-beta3 终端控制键增强（2026-09-27，`b01e07f`）**：新增 Enter 控制键（svgrepo 533683 Return 形箭头，发 `\r`）；TAB/ESC 改"框+文字"SVG 样式（文字 6.5 号 Consolas）；单击 `#status` 状态文字切换 `#control-keys` 显隐，localStorage 键 `showControlKeys` 记忆（标记挂 `#control-keys` 自身，避免被 `setStatus` 重写 className 清掉）；增量重打包验证通过（exe 20.1MB）
+- ✅ **官方插件内嵌打包（2026-09-27）**：`plugins/` 直接 `--add-data "plugins;plugins"` 打进 exe 自带层 `_MEI/plugins`，开发/生产两个 build 脚本都加、不区分环境；版本号转正 `v1.6`（待打包验证自带层加载）
+- ✅ **打包脚本统一为 build.cmd 纯 cmd 自动扫描（2026-09-29）**：删 `build-product.cmd`/`build-develop.cmd`/残留 `RemoteConnecter.spec`，单一 `build.cmd`（默认生产隐藏黑窗，`--show-console` 调试）；模块侧 `for /r functions *_bp.py` 循环自动生成 `--hidden-import`（剥 `%~dp0` 前缀 + `\`→`.`），数据侧 `for /d` 循环自动生成 `--add-data`；新增业务零改动（临时 functions/demo 实测：PYZ 自动收 `functions.demo.demo_bp` 且 `/demo` 200，还原后基线 exe 20.10MB、10 条冒烟路由全 200）；**实测修正**：`--collect-submodules functions` 在 spec 求值时返回 0（嵌入式 `_pth` 限制，手动插 sys.path 才返回 15），旧脚本"可用"是缓存假象
 
 ### 进行中 / 待办
 
@@ -159,9 +161,8 @@ RemoteConnecter/
 - ✅ 加入 proxy 功能（proxy 插件已存在并验证）
 
 #### 工程/打包
-- ⏳ 官方插件打包方案（内嵌 `--add-data "officialPlugins;plugins"` + 启动时按 version 同步解压到程序级）已设计未实施
-- ⏳ 官方插件内嵌（`_MEI/plugins` 依赖 `--add-data "officialPlugins;plugins"`，当前 build 脚本未加该行，打包后自带层静默缺失）；四级加载打包态已验证（程序级 exe 同级 plugins 实测生效，自带层待上述实施后验证）
-- ⏳ `.gitignore` 缺 `plugins/`（运行时插件目录未忽略，有误入库风险）
+- ✅ 官方插件内嵌打包：直接把仓库 `plugins/` 用 `--add-data "plugins;plugins"` 打进 exe 自带层（`_MEI/plugins`），开发/生产两个 build 脚本都加、不区分环境；**已打包验证**（dist 不放同级 plugins，`/sample`、`/sample/sample`、`/sample/static/sample.js`、`/proxy` 全 200，确认命中 `_MEI` 自带层）
+- ⏳ `.gitignore` 插件策略待定：仓库 `plugins/`（sample/proxy）是官方插件需入库打包；若日后出现用户级/运行时生成的插件目录才需要忽略
 - ⏳ `functions/update/repoUpdate.py`（未跟踪草稿）：仓库更新器，有 bug（`downloadUpdater` 引用未定义的 `availableNodes`，`getRelease()` 返回值未用）
 - ⏳ 生产打包建议关闭 `app.run(debug=True, use_reloader=True)`（frozen 环境下 reloader 会 spawn 双进程：Werkzeug 父子模型导致整脚本执行两遍、插件加载两遍、exe 双份 _MEI 解压；debug=True 的交互式调试器还有任意代码执行风险）
 - ⏳ 构建时选择 ConPTY/WinPTY 后端（build-time-pty-backend-selection 方案已论证，未实施）：pywinpty 的 `PtyProcess.spawn(..., backend=Backend.WinPTY)` 可显式指定后端，同一份源码打 Win10/Win7 两个 exe
@@ -226,17 +227,23 @@ RemoteConnecter/
 ## 六、打包指南
 
 ```bat
-:: 生产打包（-F 单文件 + 隐藏控制台 + UPX + 全资源）
-build-product.cmd
+:: 生产打包（-F 单文件 + 隐藏控制台 + UPX + 全资源，自动扫描蓝图）
+build.cmd
 
-:: 开发打包（保留控制台便于调试）
-build-develop.cmd
+:: 调试打包（保留控制台黑窗便于看日志）
+build.cmd --show-console
 ```
+
+**自动扫描机制（2026-09-29 重构，已实测验证）**：
+- **模块侧**：`for /r functions %%f in (*_bp.py)` 循环，把每个 `_bp.py` 绝对路径剥掉 `%~dp0` 前缀、去 `.py`、`\` 转 `.`，生成 `--hidden-import functions.xxx.xxx_bp`；另固定补 `--hidden-import functions.shared` 与 `--hidden-import hosts.blueprintHost hosts.pluginHost`
+- **数据侧**：`for /d %%p in (functions\*)` 循环，对存在的 `templates`/`static` 目录自动生成 `--add-data`（`%%~np` 取相对目录名，cmd 替换不认转义，用 `!rel:%~dp0=!` 剥前缀）
+- **新增业务零改动**：建 `functions/<name>/<name>_bp.py`（含 templates/static）即可，build.cmd 不改（实测：临时加 functions/demo，PYZ 自动收 `functions.demo.demo_bp` 且 `/demo` 200）
+- **`--collect-submodules functions` 不可用（实测修正）**：嵌入版 python39 的 `_pth` 限制 sys.path，**spec 求值时**（即使 cwd 是项目根）collect_submodules('functions') 返回 0 → PYZ 只剩 `functions` 包本身，6 个 _bp 全漏（exe 仅 11.5MB 而非 ~20MB）。手动 `sys.path.insert(0, 项目根)` 后同函数返回 15——说明"PyInstaller 分析期把项目根加入 sys.path"只对静态分析图生效，**对 spec 顶层 Python 代码求值不生效**。之前"build-develop.cmd 用 collect-submodules 构建正常"是旧缓存假象，已废弃该脚本
+- 教训：`_bp` 依赖运行时 pkgutil 动态发现（pyi_rth_pkgutil），静态分析图不会自动收，**必须显式 hidden-import**
 
 **关键点**：
 - 用 `python39\python.exe`（内嵌 Python 3.9，干净环境，避免冗余库）
 - **绝不能加 `-w`**（windowed 子系统会致 ConPTY 崩溃 0xc0000142），用 `--hide-console hide-early`
-- **禁止 `--collect-submodules functions`**：嵌入版 python39 的 `_pth` 限制 sys.path 且忽略 PYTHONPATH，spec 求值时 collect_submodules 返回空 → functions.* 全部漏出 PYZ（打包后 404）。必须逐业务模块显式 `--hidden-import functions.xxx.xxx_bp`；hosts 包同理（`--hidden-import hosts.blueprintHost hosts.pluginHost`）
 - `--add-data` 的源/目标路径必须与蓝图 root_path 匹配（`functions/xxx/templates` 等）；ffmpeg 必须落 `bin` 目标（`;bin` 而非 `;.`）
 - `--collect-all winpty`（Cython 扩展用 hiddenimports 收集不到）
 - `PYINSTALLER_CONFIG_DIR` 指向项目内 `.pyinstaller_cache`（规避沙箱拦截系统缓存目录）
