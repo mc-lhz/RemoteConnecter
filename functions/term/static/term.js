@@ -82,7 +82,8 @@ function buildSessionUI(cmd, existingSessionID) {
         retryCount: 0,
         retryTimer: null,
         pingTimer: null,
-        manualClose: false
+        manualClose: false,
+        needReplay: false     // 一次性: fresh 空终端首次连接时向服务端请求画面回放, hello 后消费
     };
 
     // 键盘输入只发给"本会话且本会话为前台"时的 ws
@@ -173,6 +174,7 @@ function restoreSessions() {
             if (!items.length) { return; }
             items.forEach(function (it) {
                 const s = buildSessionUI(it.cmd, it.id);
+                s.needReplay = true;   // fresh 空终端: 首次连接请求服务端回放历史画面
                 sessions.push(s);
             });
             // 优先恢复未被其他客户端附着的第一条, 其余保持 detached (后台保活, 切前台时重连)
@@ -202,6 +204,7 @@ function connectWs(session) {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     let url = proto + '://' + location.host + '/terminal/api/ws?cmd=' + encodeURIComponent(session.cmd);
     if (session.sessionID) { url += '&session=' + encodeURIComponent(session.sessionID); }
+    if (session.needReplay) { url += '&replay=1'; }
     if (session.state !== 'reconnecting') { session.state = 'connecting'; }
     setStatus(session.state === 'reconnecting' ? '重连中: ' + session.cmd : '连接中: ' + session.cmd);
 
@@ -254,6 +257,7 @@ function connectWs(session) {
 function handleControl(session, socket, obj) {
     if (obj.type === 'hello') {
         session.sessionID = obj.session;
+        session.needReplay = false;   // 一次性消费: 同页后续重连不再请求回放 (避免画面重复)
         if (obj.resumed === false) {
             session.term.reset();   // 新进程: 清空; resumed=true 时保留画面 (现场恢复)
         }

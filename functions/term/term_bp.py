@@ -52,6 +52,8 @@ DETACH_TIMEOUT = 300   # 会话无人附着宽限期(秒), 超时杀进程回收
 REAPER_INTERVAL = 10   # 回收线程扫描周期(秒)
 MAX_BACKLOG = 20000    # 会话无人附着时输出队列上限(条), 超出丢最旧
 
+REPLAY_MAX = 512 * 1024  # 回放缓冲上限(字符/字节近似), 供重连回放重建画面, 超出丢最旧
+
 # 全局会话注册表: {sessionID: TermSession}
 sessionMap = {}
 sessionMapLock = threading.Lock()
@@ -177,9 +179,23 @@ class TermSession:
         self.stop = threading.Event()
         self.spawned = threading.Event()
         self.lastDetachAt = time.time()  # 最近一次进入无人附着状态的时间戳
+        self.replayBuf = []         # 输出滚动缓冲 (str/bytes 块), 供重连回放重建画面
+        self.replaySize = 0         # replayBuf 近似大小 (str 计字符数, bytes 计字节数)
 
     def enqueueOut(self, item):
-        """输出入队 + 队列封顶 (无人附着时输出积压, 超出上限丢最旧)。"""
+        """输出入队 + 队列封顶 + 回放缓冲维护。
+
+        仅 _reader 线程调用: replayBuf 的 append/pop(0) 与主线程的 list() 快照
+        在 CPython GIL 下均为 C 级原子操作, 无需加锁。
+        先入回放缓冲再入队, 保证"快照 ⊇ 队列积压", 回放时清积压不重不丢。
+        """
+        kind, payload = item
+        if kind == 'data':
+            self.replayBuf.append(payload)
+            self.replaySize += len(payload)
+            while self.replaySize > REPLAY_MAX and self.replayBuf:
+                removed = self.replayBuf.pop(0)
+                self.replaySize -= len(removed)
         self.outQueue.put(item)
         while self.outQueue.qsize() > MAX_BACKLOG:
             try:
@@ -393,12 +409,35 @@ def wsTerminal(ws):
         _sealSocketAfterClose(ws)
         return
 
+    # 画面回放: 前端 fresh 恢复时带 replay=1, 先回放历史输出再接实时流, 重建
+    # 画面与转义序列状态 (备用屏/鼠标模式等)。顺序保证不重不丢:
+    #   ① enqueueOut 先 append replayBuf 再 put outQueue -> 积压 ⊆ 快照
+    #   ② 快照后清空 outQueue 丢弃重复积压; 此后新输出只走队列, 主循环时序在回放后
+    wantReplay = resumed and request.args.get('replay') == '1'
+    replaySnapshot = []
+    if wantReplay:
+        replaySnapshot = list(session.replayBuf)
+        while True:
+            try:
+                session.outQueue.get_nowait()
+            except queue.Empty:
+                break
+
     # hello 帧必须在主循环前发出, 保证前端 reset 决策先于任何输出。
     try:
         ws.send(json.dumps({'type': 'hello', 'session': session.sessionID,
                             'resumed': resumed, 'cmd': cmd}, ensure_ascii=False))
     except Exception:
         pass
+
+    # 回放历史输出 (winpty 为 str, _PipeProcess 为 bytes, 需兼容解码)
+    if replaySnapshot:
+        for chunk in replaySnapshot:
+            try:
+                ws.send(chunk if isinstance(chunk, str)
+                        else chunk.decode('utf-8', errors='replace'))
+            except Exception:
+                break
 
     try:
         while True:
