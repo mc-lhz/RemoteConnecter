@@ -48,7 +48,7 @@ term_bp = Blueprint('term', __name__,
 sock = Sock()
 
 # 会话保活参数
-DETACH_TIMEOUT = 300   # 会话无人附着宽限期(秒), 超时杀进程回收
+DETACH_TIMEOUT = 7200   # 会话无人附着宽限期(秒), 超时杀进程回收
 REAPER_INTERVAL = 10   # 回收线程扫描周期(秒)
 MAX_BACKLOG = 20000    # 会话无人附着时输出队列上限(条), 超出丢最旧
 
