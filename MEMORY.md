@@ -1,7 +1,7 @@
 # RemoteConnecter — AI Agent 长期维护记忆
 
 > 本文件为 AI 助手维护本项目时的长期参考。每次改动后请更新"当前状态"与"历史改动"。
-> 最后更新：2026-09-26
+> 最后更新：2026-10-01
 
 ---
 
@@ -147,6 +147,8 @@ RemoteConnecter/
 - ✅ **v1.6-beta3 终端控制键增强（2026-09-27，`b01e07f`）**：新增 Enter 控制键（svgrepo 533683 Return 形箭头，发 `\r`）；TAB/ESC 改"框+文字"SVG 样式（文字 6.5 号 Consolas）；单击 `#status` 状态文字切换 `#control-keys` 显隐，localStorage 键 `showControlKeys` 记忆（标记挂 `#control-keys` 自身，避免被 `setStatus` 重写 className 清掉）；增量重打包验证通过（exe 20.1MB）
 - ✅ **官方插件内嵌打包（2026-09-27）**：`plugins/` 直接 `--add-data "plugins;plugins"` 打进 exe 自带层 `_MEI/plugins`，开发/生产两个 build 脚本都加、不区分环境；版本号转正 `v1.6`（待打包验证自带层加载）
 - ✅ **打包脚本统一为 build.cmd 纯 cmd 自动扫描（2026-09-29）**：删 `build-product.cmd`/`build-develop.cmd`/残留 `RemoteConnecter.spec`，单一 `build.cmd`（默认生产隐藏黑窗，`--show-console` 调试）；模块侧 `for /r functions *_bp.py` 循环自动生成 `--hidden-import`（剥 `%~dp0` 前缀 + `\`→`.`），数据侧 `for /d` 循环自动生成 `--add-data`；新增业务零改动（临时 functions/demo 实测：PYZ 自动收 `functions.demo.demo_bp` 且 `/demo` 200，还原后基线 exe 20.10MB、10 条冒烟路由全 200）；**实测修正**：`--collect-submodules functions` 在 spec 求值时返回 0（嵌入式 `_pth` 限制，手动插 sys.path 才返回 15），旧脚本"可用"是缓存假象
+- ✅ **远程终端多终端 + 断线重连（2026-10-01，分支 `feat/term-multi-reconnect`）**：引入 `TermSession` 会话对象 + 全局 `sessionMap` 注册表，将"WS 生命周期==进程生命周期"解耦为"会话独立生命周期"；WS 断开→`_detach` 保活（`DETACH_TIMEOUT=300` 宽限，`_sessionReaper` 10s 扫描回收，`MAX_BACKLOG=20000` 输出队列封顶丢最旧），重连带 `session` 参数 attach 复用进程恢复现场。帧协议扩展：新增 `hello` 帧（attach 后第一帧，含 `resumed` 决定前端是否 reset）、`close` 帧（前→后显式杀会话）、启用 `ping`/`pong` 心跳（前端 15s）。前端 `term.js` 单例改会话数组，新增侧边栏（`#sidebar` 会话列表，`#sidebar-toggle` 切换 + localStorage 记忆）、切前台断开旧 WS 保活、仅前台指数退避重连（`1000*2^(n-1)` 封顶 30s）。`term.html` 加 `#sidebar`+`#main` 包裹，预设按钮改 `createSession(...)`、`#connect` 改"新建"；`term.css` 改 row 布局 + 侧边栏/会话项/窄屏覆盖层样式。**整页刷新不丢终端**：新增 `GET /terminal/api/sessions`（`listSessions`）返回存活会话 `{id,cmd,attached}`，前端 `buildSessionUI` 抽离（供新建/恢复复用）+ `restoreSessions` 在页面加载时拉取列表重建终端并 `switchSession` 重连恢复（`sessionID` 预填走 attach）。架构硬约束全程保留：pywinpty 线程亲和（spawn/read 同线程在 `_reader`）、ws.send 全收敛 WS 主线程、`b'0011Ignore'` 空串≠EOF、Windows write 收 str。**关键启动约束：`app.run` 必须 `threaded=True`**——多会话架构要求并发处理多个连接/请求；不能用 `processes>1`(fork)，因 `sessionMap` 是进程内内存表、winpty 句柄不可跨进程共享。**"Invalid frame header" 真因（2026-10-14 定位）**：flask_sock werkzeug 模式下 handler 返回普通 200 Response，werkzeug `execute()` teardown 会向已升级 socket 补写 `HTTP/1.1 200 OK` 头；浏览器 CLOSING 状态仍在读帧（同页抢占/刷新交接窗口），该字节被解析为非法帧。修复 = `term_bp.py` 的 `_sealSocketAfterClose`（发 close 帧后 `shutdown(SHUT_WR)`，teardown 写入必然 BrokenPipeError 被其 `connection_dropped` 分支静默吞掉）+ 前端 `connectWs` 防抢占守卫（同会话 `readyState<=2` 禁止重复建连，否则服务端失权旧连接触发本 bug）。GetDiagnostics 4 文件全通过
+- ✅ **刷新恢复画面回放缓冲（2026-10-14，同分支）**：刷新后新 xterm 丢失全部转义序列状态（历史输出/备用屏/鼠标模式 `?1000h`）→ 画面空白 + 鼠标点击/滚轮失效同源。修复：`TermSession.replayBuf`（`REPLAY_MAX=512KB` 滚动缓冲，`enqueueOut` 先 append replayBuf 再 put outQueue）+ `wsTerminal` 重连带 `&replay=1` 时按**快照→清空 outQueue→hello→回放→主循环**顺序（不重不丢；快照与清空间新到的块已入快照、清空后新到的只走队列）；前端一次性标志 `needReplay`（restoreSessions 恢复的 fresh 空终端置 true，hello 到达即消费，同页重连不回放防画面重复）。验证：Python WS 客户端确定性 PASS（回显行恰出现 1 次）+ 浏览器端到端（40KB dir /s 历史完整重建、markOK123 计数=2 无重复、scrollTop 可滚、term.focus() 聚焦正常、控制台零报错）。**测试教训**：`dir /s` 在用户目录跑数分钟会吞掉后续 echo（命令排队非 bug）；多会话页面取画面必须用 `activeSession.term.buffer.active.getLine(i).translateToString(true)`，`querySelector('.xterm-rows')` 会取错 DOM；浏览器代理验证终端输入用 `activeSession.ws.send('cmd\r\n')` 代替合成键盘事件。详见 REPORT-term-ws.md
 
 ### 进行中 / 待办
 
@@ -154,7 +156,7 @@ RemoteConnecter/
 - ⏳ 文件列表改为仅显示文件名（顶部显示当前文件夹路径），不再显示完整路径
 - ⏳ 优化实时屏幕，提升公网访问流畅性
 - ⏳ 修复实时屏幕部分按键不可用的 Bug
-- ⏳ 远程终端多终端支持 + 断线重连
+- ✅ 远程终端多终端支持 + 断线重连（2026-10-01，分支 `feat/term-multi-reconnect`，见上方已完成）
 - ⏳ 终端图标改为动态获取，不再使用静态资源
 - ⏳ 加入以 Monaco Editor 为核心的代码编辑器
 - ✅ 加入插件功能（v1.6-beta1 已实现）
