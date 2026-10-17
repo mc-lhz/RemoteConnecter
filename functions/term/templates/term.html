@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="/term/static/term.css">
 </head>
 <body>
-    <!-- 左侧会话栏: 默认隐藏, 点 #sidebar-toggle 展开 -->
+    <!-- 左侧会话栏: 固定覆盖层, 点 #sidebar-toggle 滑入, 点遮罩层收起 -->
     <div id="sidebar">
         <div id="sidebar-head">
             <span class="sidebar-title">终端</span>
@@ -17,6 +17,8 @@
         </div>
         <ul id="session-list"></ul>
     </div>
+    <!-- 遮罩层: 侧边栏展开时显示, 点击收起侧边栏 -->
+    <div id="sidebar-overlay"></div>
     <div id="main">
         <div id="bar">
             <button id="sidebar-toggle" title="显示/隐藏终端列表">&#9776;</button>

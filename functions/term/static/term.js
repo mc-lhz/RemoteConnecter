@@ -19,6 +19,7 @@ const btn = document.getElementById('connect');
 const controlKeys = document.getElementById('control-keys');
 const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebar-toggle');
+const sidebarOverlay = document.getElementById('sidebar-overlay');
 
 function setStatus(text, cls) {
     statusEl.textContent = text;
@@ -363,13 +364,21 @@ document.getElementById('cmd').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { createSessionFromInput(); }
 });
 
-// 侧边栏展开/隐藏 (localStorage 记忆, 对齐 showControlKeys 惯例)
+// 侧边栏展开/收起: 覆盖层模式, 同步遮罩层状态并记忆偏好 (localStorage)
+function setSidebarOpen(open) {
+    sidebar.classList.toggle('open', open);
+    sidebarOverlay.classList.toggle('open', open);
+    localStorage.setItem(SIDEBAR_PREF_KEY, open ? '1' : '0');
+}
 if (localStorage.getItem(SIDEBAR_PREF_KEY) === '1') {
-    sidebar.classList.add('open');
+    setSidebarOpen(true);
 }
 sidebarToggle.addEventListener('click', function () {
-    sidebar.classList.toggle('open');
-    localStorage.setItem(SIDEBAR_PREF_KEY, sidebar.classList.contains('open') ? '1' : '0');
+    setSidebarOpen(!sidebar.classList.contains('open'));
+});
+// 点击遮罩层收起侧边栏
+sidebarOverlay.addEventListener('click', function () {
+    setSidebarOpen(false);
 });
 
 // 单击状态文字 → 切换控制键区显示/隐藏 (标记挂在 #control-keys 上, 避免被 setStatus 重写 className 清掉)
