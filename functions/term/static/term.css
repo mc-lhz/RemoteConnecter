@@ -16,17 +16,73 @@ body {
     min-width: 0;
 }
 
-/* 左侧会话栏: 默认隐藏, .open 时显示 */
+/* 左侧会话栏: 固定覆盖层 (移植自 factorization.top/rsc 的 aside+overlay 模式),
+   默认 translateX(-100%) 屏外隐藏, .open 时滑入; 全程覆盖主区不占布局 */
 #sidebar {
-    flex: 0 0 200px;
-    width: 200px;
-    background: #161b22;
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    width: 220px;
+    background: rgba(22, 27, 34, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border-right: 1px solid #30363d;
-    display: none;
+    display: flex;
     flex-direction: column;
     min-height: 0;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: none;
 }
-#sidebar.open { display: flex; }
+#sidebar.open {
+    transform: translateX(0);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.5);
+}
+
+/* 侧边栏关闭按钮样式 */
+.sidebar-close-btn {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: transparent;
+    color: #8b949e;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+.sidebar-close-btn svg {
+    width: 18px;
+    height: 18px;
+}
+.sidebar-close-btn:hover {
+    background: rgba(248, 81, 73, 0.15);
+    color: #f85149;
+}
+
+/* 遮罩层: 展开时淡入, 点击收起侧边栏 */
+#sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 90;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s;
+}
+#sidebar-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
 #sidebar-head {
     flex-shrink: 0;
     display: flex;
@@ -34,6 +90,7 @@ body {
     justify-content: space-between;
     padding: 8px;
     border-bottom: 1px solid #30363d;
+    gap: 8px;
 }
 .sidebar-title { font-size: 14px; color: #8b949e; }
 #sidebar-add {
@@ -240,13 +297,4 @@ body {
     .hint { display: none; }      /* 装饰性提示，窄屏隐藏省空间 */
     #cmd { min-width: 0; }        /* 解除 120px 下限，让输入框可压缩，避免整行溢出 */
     .control-key { width: 40px; height: 40px; }   /* 触控目标加大，方便手指点按 */
-    /* 窄屏侧边栏改固定定位覆盖层 */
-    #sidebar {
-        position: fixed;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        z-index: 100;
-        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.5);
-    }
 }
