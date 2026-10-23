@@ -17,6 +17,9 @@
         dom.tree = document.getElementById('file-tree');
         dom.empty = document.getElementById('tree-empty');
         dom.path = document.getElementById('workspace-path');
+        dom.name = document.getElementById('workspace-name');
+        dom.row = document.getElementById('btn-workspace-row');
+        dom.openFolder = document.getElementById('btn-open-folder-sidebar');
         dom.newFile = document.getElementById('btn-new-file');
         dom.newFolder = document.getElementById('btn-new-folder');
         dom.upload = document.getElementById('btn-upload');
@@ -78,15 +81,21 @@
     }
 
     function updateWorkspaceSummary() {
-        if (!dom.path) { return; }
-        if (state.workspace) {
-            dom.path.textContent = state.workspace.root;
-            dom.path.classList.remove('hidden');
-            dom.path.title = state.workspace.root;
-        } else {
-            dom.path.textContent = '';
+        const workspace = state.workspace;
+        if (dom.name) {
+            dom.name.textContent = workspace ? (workspace.name || workspace.root) : '';
+            dom.name.title = workspace ? workspace.root : '';
+        }
+        if (dom.row) {
+            dom.row.classList.toggle('hidden', !workspace);
+        }
+        if (dom.openFolder) {
+            dom.openFolder.classList.toggle('hidden', !!workspace);
+        }
+        if (dom.path) {
+            dom.path.textContent = workspace ? workspace.root : '';
+            dom.path.title = workspace ? workspace.root : '';
             dom.path.classList.add('hidden');
-            dom.path.title = '';
         }
     }
 
@@ -448,17 +457,24 @@
         contextMenu.className = 'context-menu';
 
         if (!node) {
-            contextMenu.appendChild(contextItem('新建文件', 'codicon-new-file', function () {
-                return newFile(state.selectedDir || '');
-            }));
-            contextMenu.appendChild(contextItem('新建文件夹', 'codicon-new-folder', function () {
-                return newFolder(state.selectedDir || '');
-            }));
-            contextMenu.appendChild(contextItem('上传文件', 'codicon-cloud-upload', function () {
-                requestUpload(state.selectedDir || '');
-            }));
-            contextMenu.appendChild(contextSeparator());
-            contextMenu.appendChild(contextItem('刷新', 'codicon-refresh', refresh));
+            if (!state.workspace) {
+                contextMenu.appendChild(contextItem('打开文件夹...', 'codicon-folder-opened', function () {
+                    document.dispatchEvent(new CustomEvent('code:open-folder-request'));
+                }));
+            } else {
+                contextMenu.appendChild(contextItem('新建文件', 'codicon-new-file', function () {
+                    return newFile(state.selectedDir || '');
+                }));
+                contextMenu.appendChild(contextItem('新建文件夹', 'codicon-new-folder', function () {
+                    return newFolder(state.selectedDir || '');
+                }));
+                contextMenu.appendChild(contextItem('上传文件', 'codicon-cloud-upload', function () {
+                    requestUpload(state.selectedDir || '');
+                }));
+                contextMenu.appendChild(contextSeparator());
+                contextMenu.appendChild(contextItem('折叠文件夹', 'codicon-collapse-all', collapseAll));
+                contextMenu.appendChild(contextItem('刷新', 'codicon-refresh', refresh));
+            }
         } else if (node.type === 'dir') {
             contextMenu.appendChild(contextItem('新建文件', 'codicon-new-file', function () {
                 return newFile(node.path);
@@ -500,6 +516,10 @@
         const top = Math.min(y, window.innerHeight - rect.height - 8);
         contextMenu.style.left = Math.max(4, left) + 'px';
         contextMenu.style.top = Math.max(4, top) + 'px';
+    }
+
+    function showMenuAt(x, y) {
+        showContextMenu(x, y, null);
     }
 
     function init() {
@@ -545,6 +565,10 @@
         refresh: refresh,
         collapseAll: collapseAll,
         setActivePath: setActivePath,
+        newFile: function (dir) { return newFile(dir); },
+        newFolder: function (dir) { return newFolder(dir); },
+        requestUpload: function (dir) { requestUpload(dir); },
+        showMenuAt: showMenuAt,
         getSelectedDir: function () { return state.selectedDir || ''; },
         getWorkspace: function () { return state.workspace; }
     };
