@@ -7,6 +7,7 @@ const RECONNECT_BASE = 1000;    // 重连退避基数(ms)
 const RECONNECT_MAX = 30000;    // 重连退避封顶(ms)
 const KEYS_PREF_KEY = 'showControlKeys';
 const SIDEBAR_PREF_KEY = 'sidebarOpen';
+const URL_CWD = new URLSearchParams(location.search).get('cwd') || '';
 
 // 会话状态
 let sessions = [];              // 全部会话
@@ -206,6 +207,7 @@ function connectWs(session) {
     let url = proto + '://' + location.host + '/terminal/api/ws?cmd=' + encodeURIComponent(session.cmd);
     if (session.sessionID) { url += '&session=' + encodeURIComponent(session.sessionID); }
     if (session.needReplay) { url += '&replay=1'; }
+    if (URL_CWD && !session.sessionID) { url += '&cwd=' + encodeURIComponent(URL_CWD); }
     if (session.state !== 'reconnecting') { session.state = 'connecting'; }
     setStatus(session.state === 'reconnecting' ? '重连中: ' + session.cmd : '连接中: ' + session.cmd);
 
@@ -405,3 +407,8 @@ window.addEventListener('resize', function () {
 
 // 页面加载 → 恢复服务端仍存活的会话 (刷新不丢终端)
 restoreSessions();
+
+// 带 ?cwd= 进入 (文件管理器「在终端中打开」) 且无存活会话时, 自动在指定目录开一个会话
+if (URL_CWD && sessions.length === 0) {
+    createSession('');
+}

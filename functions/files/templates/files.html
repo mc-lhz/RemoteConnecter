@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件管理</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/files/static/files.css">
+</head>
+<body>
+    <div class="shell">
+        <aside class="sidebar">
+            <div class="side-title">位置</div>
+            <button class="side-item" data-nav="inbox">📥 收件箱</button>
+            <div class="side-title">快速访问</div>
+            <div id="quick-list"></div>
+            <div class="side-title">此电脑</div>
+            <div id="drive-list"></div>
+        </aside>
+
+        <main class="main">
+            <div class="toolbar">
+                <button id="btn-newdir" class="tool-btn">📁 新建文件夹</button>
+                <button id="btn-upload" class="tool-btn primary">⬆ 本地上传</button>
+                <input id="file-input" type="file" multiple hidden>
+                <button id="btn-ai" class="tool-btn">✦ 问 AI</button>
+                <label class="hidden-toggle"><input type="checkbox" id="show-hidden"> 显示隐藏项</label>
+                <input id="filter-input" type="text" placeholder="搜索当前目录...">
+            </div>
+            <div class="pathbar">
+                <button id="btn-up" class="icon-btn" title="上级">↑</button>
+                <button id="btn-refresh" class="icon-btn" title="刷新">⟳</button>
+                <input id="path-input" type="text" spellcheck="false">
+            </div>
+            <div id="grid" class="grid"></div>
+            <div id="empty" class="empty" hidden>此文件夹为空</div>
+        </main>
+    </div>
+
+    <footer id="statusbar" class="statusbar">
+        <span id="stat-left">0 个项目</span>
+        <div id="batch-actions" class="batch-actions" hidden>
+            <span id="stat-sel">已选 0 项</span>
+            <button data-batch="download">下载</button>
+            <button data-batch="copy">复制</button>
+            <button data-batch="move">移动</button>
+            <button data-batch="compress">压缩</button>
+            <button data-batch="delete" class="danger">删除</button>
+            <button data-batch="clear" class="ghost">取消选择</button>
+        </div>
+    </footer>
+
+    <div id="ctx-menu" class="ctx-menu" hidden></div>
+    <div id="modal-root" class="modal-root" hidden></div>
+    <div id="toast" class="toast" hidden></div>
+
+    <script src="/files/static/files.js"></script>
+</body>
+</html>
