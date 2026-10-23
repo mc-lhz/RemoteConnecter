@@ -9,7 +9,14 @@
         runtimes: null,
         menu: null,
         menuDocHandler: null,
-        palette: null
+        palette: null,
+        activeView: 'explorer',
+        search: {
+            caseSensitive: false,
+            regex: false,
+            token: 0,
+            timer: null
+        }
     };
 
     const dom = {};
@@ -32,6 +39,12 @@
         dom.statusEol = document.getElementById('status-eol');
         dom.statusMessage = document.getElementById('status-message');
         dom.sidebar = document.getElementById('sidebar');
+        dom.viewExplorer = document.getElementById('view-explorer');
+        dom.viewSearch = document.getElementById('view-search');
+        dom.searchInput = document.getElementById('search-input');
+        dom.searchSummary = document.getElementById('search-summary');
+        dom.searchResults = document.getElementById('search-results');
+        dom.searchEmpty = document.getElementById('search-empty');
         dom.fileUpload = document.getElementById('file-upload');
         dom.modalRoot = document.getElementById('modal-root');
     }
@@ -398,6 +411,140 @@
         }
     }
 
+    // -----------------------------------------------------------------------
+    // 侧栏视图切换与全工作区搜索
+    // -----------------------------------------------------------------------
+
+    function setActiveView(name) {
+        state.activeView = name;
+        if (dom.viewExplorer) { dom.viewExplorer.classList.toggle('hidden', name !== 'explorer'); }
+        if (dom.viewSearch) { dom.viewSearch.classList.toggle('hidden', name !== 'search'); }
+        const explorerButton = document.getElementById('btn-activity-explorer');
+        const searchButton = document.getElementById('btn-activity-search');
+        if (explorerButton) { explorerButton.classList.toggle('active', name === 'explorer'); }
+        if (searchButton) { searchButton.classList.toggle('active', name === 'search'); }
+        if (dom.sidebar) {
+            dom.sidebar.classList.remove('collapsed');
+            if (window.innerWidth <= 760) { dom.sidebar.classList.add('open'); }
+        }
+        if (window.CodeEditor) { window.CodeEditor.layout(); }
+    }
+
+    function openSearchView() {
+        setActiveView('search');
+        if (dom.searchInput) {
+            dom.searchInput.focus();
+            dom.searchInput.select();
+        }
+    }
+
+    function clearSearchResults() {
+        state.search.token++;
+        if (dom.searchResults) { dom.searchResults.innerHTML = ''; }
+        if (dom.searchSummary) { dom.searchSummary.classList.add('hidden'); }
+        if (dom.searchEmpty) { dom.searchEmpty.classList.remove('hidden'); }
+    }
+
+    function renderSearchResults(data) {
+        if (!dom.searchResults) { return; }
+        dom.searchResults.innerHTML = '';
+        dom.searchEmpty.classList.add('hidden');
+        dom.searchSummary.classList.remove('hidden');
+        dom.searchSummary.textContent = data.truncated
+            ? data.matchCount + ' 个结果（已截断）'
+            : data.matchCount + ' 个结果';
+        dom.searchSummary.title = '扫描 ' + data.filesScanned + ' 个文件';
+
+        data.results.forEach(function (file) {
+            const group = el('div', 'search-file');
+            const header = el('button', 'search-file-header');
+            header.type = 'button';
+            header.title = file.path;
+            header.appendChild(el('span', 'codicon codicon-file-code search-file-icon'));
+            header.appendChild(el('span', 'search-file-name', file.name));
+            header.appendChild(el('span', 'search-file-count', String(file.matches.length)));
+            header.addEventListener('click', function () {
+                jumpToMatch(file.path, file.matches[0]);
+            });
+            group.appendChild(header);
+
+            file.matches.forEach(function (match) {
+                const row = el('button', 'search-match');
+                row.type = 'button';
+                row.appendChild(el('span', 'search-match-line', String(match.line)));
+                const textNode = el('span', 'search-match-text');
+                const raw = match.text || '';
+                const start = Math.max(0, Math.min((match.previewCol || 1) - 1, raw.length));
+                const end = Math.max(start, Math.min(start + (match.previewLength || 0), raw.length));
+                textNode.appendChild(document.createTextNode(raw.slice(0, start)));
+                if (end > start) {
+                    textNode.appendChild(el('mark', 'search-match-hit', raw.slice(start, end)));
+                }
+                textNode.appendChild(document.createTextNode(raw.slice(end)));
+                row.appendChild(textNode);
+                row.addEventListener('click', function () {
+                    jumpToMatch(file.path, match);
+                });
+                group.appendChild(row);
+            });
+            dom.searchResults.appendChild(group);
+        });
+    }
+
+    function jumpToMatch(path, match) {
+        window.CodeEditor.revealPosition(path, match.line, match.col).catch(function (err) {
+            status('打开失败：' + (err.message || String(err)), 'error');
+        });
+        if (window.innerWidth <= 760) { closeMobileSidebar(); }
+    }
+
+    function scheduleSearch() {
+        if (state.search.timer) { clearTimeout(state.search.timer); }
+        state.search.timer = setTimeout(function () {
+            state.search.timer = null;
+            runSearch();
+        }, 350);
+    }
+
+    async function runSearch() {
+        if (!window.CodeAPI.workspaceId) {
+            status('请先打开文件夹', 'error');
+            return;
+        }
+        const query = dom.searchInput ? dom.searchInput.value.trim() : '';
+        if (query.length < 2) {
+            clearSearchResults();
+            if (query) { status('搜索关键词至少需要 2 个字符', ''); }
+            return;
+        }
+        const token = ++state.search.token;
+        dom.searchEmpty.classList.add('hidden');
+        dom.searchSummary.classList.remove('hidden');
+        dom.searchSummary.textContent = '搜索中…';
+        dom.searchSummary.title = '';
+        try {
+            const data = await window.CodeAPI.search(query, {
+                caseSensitive: state.search.caseSensitive,
+                regex: state.search.regex
+            });
+            if (token !== state.search.token) { return; }
+            renderSearchResults(data);
+        } catch (err) {
+            if (token !== state.search.token) { return; }
+            dom.searchResults.innerHTML = '';
+            dom.searchSummary.textContent = '搜索失败：' + (err.message || String(err));
+        }
+    }
+
+    function toggleSearchOption(key) {
+        state.search[key] = !state.search[key];
+        const buttonId = key === 'caseSensitive' ? 'btn-search-case' : 'btn-search-regex';
+        const button = document.getElementById(buttonId);
+        if (button) { button.classList.toggle('active', state.search[key]); }
+        const query = dom.searchInput ? dom.searchInput.value.trim() : '';
+        if (query.length >= 2) { runSearch(); }
+    }
+
     function resetEditorStatus() {
         if (dom.statusPosition) { dom.statusPosition.textContent = 'Ln 1, Col 1'; }
         if (dom.statusEncoding) { dom.statusEncoding.textContent = 'UTF-8'; }
@@ -682,6 +829,7 @@
             { label: '切换终端', icon: 'codicon-terminal', shortcut: 'Ctrl+`', action: function () { window.CodeTerminal.toggle(); } },
             { label: '运行当前文件', icon: 'codicon-play', shortcut: 'F5', action: runActive },
             { separator: true },
+            { label: '搜索工作区...', icon: 'codicon-search', shortcut: 'Ctrl+Shift+F', action: openSearchView },
             { label: '命令面板...', icon: 'codicon-symbol-color', shortcut: 'Ctrl+Shift+P', action: showCommandPalette },
             { label: '设置', icon: 'codicon-settings-gear', shortcut: 'Ctrl+,', action: openSettings },
             { label: '关于 Code', icon: 'codicon-info', action: aboutCode }
@@ -700,6 +848,7 @@
             { label: '打开文件夹...', detail: 'Ctrl+O', icon: 'codicon-folder-opened', action: chooseWorkspace },
             { label: '保存', detail: 'Ctrl+S', icon: 'codicon-save', action: saveActive },
             { label: '刷新资源管理器', icon: 'codicon-refresh', action: refreshExplorer },
+            { label: '搜索工作区', detail: 'Ctrl+Shift+F', icon: 'codicon-search', action: openSearchView },
             { label: '新建文件', icon: 'codicon-new-file', action: function () { return window.CodeExplorer.newFile(); } },
             { label: '新建文件夹', icon: 'codicon-new-folder', action: function () { return window.CodeExplorer.newFolder(); } },
             { label: '上传文件', icon: 'codicon-cloud-upload', action: function () { window.CodeExplorer.requestUpload(); } },
@@ -838,7 +987,9 @@
             window.CodeTerminal.toggle();
         });
         bind('btn-toggle-sidebar', 'click', toggleSidebar);
-        bind('btn-activity-explorer', 'click', toggleSidebar);
+        bind('btn-activity-explorer', 'click', function () {
+            if (state.activeView === 'explorer') { toggleSidebar(); } else { setActiveView('explorer'); }
+        });
         bind('btn-activity-menu', 'click', function (event) {
             showLogoMenu(event.currentTarget);
         });
@@ -846,7 +997,39 @@
         bind('btn-activity-account', 'click', function (event) {
             showAccountMenu(event.currentTarget);
         });
-        bind('btn-activity-search', 'click', function () { placeholderFeature('搜索'); });
+        bind('btn-activity-search', 'click', function () {
+            if (state.activeView === 'search') { toggleSidebar(); } else { openSearchView(); }
+        });
+        bind('btn-search-case', 'click', function () { toggleSearchOption('caseSensitive'); });
+        bind('btn-search-regex', 'click', function () { toggleSearchOption('regex'); });
+        bind('btn-search-refresh', 'click', function () { runSearch(); });
+        bind('btn-search-clear', 'click', function () {
+            if (dom.searchInput) {
+                dom.searchInput.value = '';
+                dom.searchInput.focus();
+            }
+            clearSearchResults();
+        });
+        if (dom.searchInput) {
+            dom.searchInput.addEventListener('input', scheduleSearch);
+            dom.searchInput.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    if (state.search.timer) {
+                        clearTimeout(state.search.timer);
+                        state.search.timer = null;
+                    }
+                    runSearch();
+                } else if (event.key === 'Escape') {
+                    if (dom.searchInput.value) {
+                        dom.searchInput.value = '';
+                        clearSearchResults();
+                    } else {
+                        setActiveView('explorer');
+                    }
+                }
+            });
+        }
         bind('btn-activity-scm', 'click', function () { placeholderFeature('源代码管理'); });
         bind('btn-activity-debug', 'click', function () { placeholderFeature('运行和调试'); });
         bind('btn-activity-extensions', 'click', function () { placeholderFeature('扩展'); });
@@ -899,6 +1082,8 @@
             updateWorkspaceUI();
             closeMobileSidebar();
             loadRuntimes();
+            if (dom.searchInput) { dom.searchInput.value = ''; }
+            clearSearchResults();
         });
 
         window.addEventListener('keydown', function (event) {
@@ -907,6 +1092,15 @@
             if (ctrl && event.shiftKey && key === 'p') {
                 event.preventDefault();
                 showCommandPalette();
+            } else if (ctrl && event.shiftKey && key === 'f') {
+                event.preventDefault();
+                openSearchView();
+            } else if (event.altKey && !ctrl && key === 'c' && state.activeView === 'search') {
+                event.preventDefault();
+                toggleSearchOption('caseSensitive');
+            } else if (event.altKey && !ctrl && key === 'r' && state.activeView === 'search') {
+                event.preventDefault();
+                toggleSearchOption('regex');
             } else if (ctrl && key === ',') {
                 event.preventDefault();
                 openSettings();

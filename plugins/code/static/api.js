@@ -103,6 +103,22 @@
             }));
         },
 
+        search(query, options) {
+            const ws = requireWorkspace();
+            const opts = options || {};
+            return request('/code/api/fs/search?' + qs({
+                workspaceId: ws.id,
+                query: query,
+                case: opts.caseSensitive ? '1' : '',
+                regex: opts.regex ? '1' : ''
+            }));
+        },
+
+        listFiles() {
+            const ws = requireWorkspace();
+            return request('/code/api/fs/list?' + qs({ workspaceId: ws.id }));
+        },
+
         readFile(path) {
             const ws = requireWorkspace();
             return request('/code/api/fs/file?' + qs({

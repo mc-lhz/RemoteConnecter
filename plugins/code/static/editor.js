@@ -597,9 +597,25 @@
         emitTabs();
     }
 
+    async function revealPosition(path, line, column) {
+        if (!state.ready) { throw new Error('编辑器尚未就绪'); }
+        const existing = state.tabs.find(function (tab) { return tab.path === path; });
+        const tab = existing || await openFile(path);
+        if (!existing) { activate(tab); }
+        const lineNumber = Math.max(1, Math.min(parseInt(line, 10) || 1, tab.model.getLineCount()));
+        const col = Math.max(1, parseInt(column, 10) || 1);
+        if (state.editor) {
+            state.editor.revealLineInCenter(lineNumber);
+            state.editor.setPosition({ lineNumber: lineNumber, column: col });
+            state.editor.focus();
+        }
+        return tab;
+    }
+
     window.CodeEditor = {
         init: init,
         openFile: openFile,
+        revealPosition: revealPosition,
         saveActive: saveActive,
         saveTab: saveTab,
         closeTab: closeTab,

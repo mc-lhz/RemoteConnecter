@@ -7,6 +7,8 @@
     GET  /code/api/browse              文件夹选择器
     POST /code/api/workspaces          打开工作区
     GET  /code/api/fs/tree             目录列表
+    GET  /code/api/fs/search           全工作区文本搜索
+    GET  /code/api/fs/list             全工作区文件名列表
     GET  /code/api/fs/file             读取文本
     PUT  /code/api/fs/file             保存文本
     POST /code/api/fs/mkdir            新建文件夹
@@ -37,12 +39,14 @@ try:
         getRuntimes,
         listDirectory,
         listDrives,
+        listWorkspaceFiles,
         makeDirectory,
         rawFile,
         readTextFile,
         registry,
         renameEntry,
         saveUpload,
+        searchWorkspace,
         writeTextFile,
     )
 except ImportError:
@@ -58,12 +62,14 @@ except ImportError:
         getRuntimes,
         listDirectory,
         listDrives,
+        listWorkspaceFiles,
         makeDirectory,
         rawFile,
         readTextFile,
         registry,
         renameEntry,
         saveUpload,
+        searchWorkspace,
         writeTextFile,
     )
 
@@ -138,6 +144,23 @@ def apiTree():
     payload = request.args
     workspace = registry.get(payload.get('workspaceId'))
     return jsonify(listDirectory(workspace, payload.get('path')))
+
+
+@code_bp.route('/code/api/fs/search')
+def apiSearch():
+    workspace = registry.get(request.args.get('workspaceId'))
+    return jsonify(searchWorkspace(
+        workspace,
+        request.args.get('query'),
+        caseSensitive=_boolValue(request.args.get('case')),
+        regex=_boolValue(request.args.get('regex')),
+    ))
+
+
+@code_bp.route('/code/api/fs/list')
+def apiListFiles():
+    workspace = registry.get(request.args.get('workspaceId'))
+    return jsonify(listWorkspaceFiles(workspace))
 
 
 @code_bp.route('/code/api/fs/file', methods=['GET'])
