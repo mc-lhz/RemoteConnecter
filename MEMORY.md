@@ -1,7 +1,7 @@
 # RemoteConnecter — AI Agent 长期维护记忆
 
 > 本文件为 AI 助手维护本项目时的长期参考。每次改动后请更新"当前状态"与"历史改动"。
-> 最后更新：2026-10-01
+> 最后更新：2026-10-24
 
 ---
 
@@ -11,7 +11,7 @@
 
 **形态**：Flask 后端 + 浏览器控制终端，打包为单文件 exe 部署在机房电脑上，通过浏览器（局域网/内网穿透）远程管理。
 
-**当前版本**：`v1.6`（见 `utils.py` 的 `VERSION`，用户已从 v1.6-beta3 转正；最新推送提交 `b01e07f`；git tag 最新 `v1.6-beta2`，v1.6 尚未打 tag）
+**当前版本**：`v1.7-beta.1`（仓库已提交版；main 最新 `3d6de69`，git tag 最新 `v1.7-beta.1`。工作区另有**未提交**改动：`utils.py` VERSION 已改 `v1.7.1-beta.1`、build.cmd、plugins/proxy 调整）
 
 **技术栈**：
 - 后端：Python 3.9（`python39/` 内嵌环境）、Flask 3.1.2、flask_sock（WebSocket）、pywinpty（ConPTY 终端）、pygame（音频播放）、Pillow/pyautogui（屏幕控制）
@@ -33,7 +33,7 @@ RemoteConnecter/
 ├── hosts/                  # ★ 宿主层（v1.6-beta1 抽离）
 │   ├── blueprintHost.py    # 蓝图宿主：discoverBuiltinBlueprints / registerModuleBlueprints / initSockInstances
 │   └── pluginHost.py       # 插件宿主：getPluginDirs / loadPlugins / loadPluginFile / loadAndRegisterPlugins
-├── plugins/                # 运行时插件目录（不入库）；测试插件 sample/proxy
+├── plugins/                # 官方插件（sample/proxy，已入库随 exe 内嵌；proxy/lib 为未跟踪私有依赖）
 ├── utils.py                # 工具库：VERSION、resourcePath、isPackaged、_MEI 清理、文件浏览、自动更新
 ├── Logcat.py               # 彩色日志模块（info/warn/error/debug）
 ├── functions/              # ★ 业务模块集合（自动扫描）
@@ -100,7 +100,7 @@ RemoteConnecter/
 
 **容错**：单插件失败仅记 ERROR（含 `rcplugin_<id>` 的 `sys.modules` 注册），不阻断主程序启动；`plugins` 不存在静默跳过，存在但非目录告警。
 
-**打包官方插件（未实施）**：方案已定——仓库建 `officialPlugins/`，`--add-data "officialPlugins;plugins"` 内嵌 + `syncBuiltinPlugins()` 按 `plugin.json` 的 `version` 字段同步解压到程序级（需新增 version 字段与 `versionKey` 数字比较）。
+**打包官方插件（已实施 2026-09-27）**：未另建 `officialPlugins/` 目录——仓库 `plugins/`（sample/proxy）直接 `--add-data "plugins;plugins"` 内嵌进 exe 自带层 `_MEI/plugins`，随启动版本同步逻辑生效。
 
 ### 4. 蓝图自带 template/static
 每个业务蓝图声明 `template_folder='templates'`、`static_folder='static'`，前端文件放各自业务目录内，不走全局 static。
@@ -147,8 +147,15 @@ RemoteConnecter/
 - ✅ **v1.6-beta3 终端控制键增强（2026-09-27，`b01e07f`）**：新增 Enter 控制键（svgrepo 533683 Return 形箭头，发 `\r`）；TAB/ESC 改"框+文字"SVG 样式（文字 6.5 号 Consolas）；单击 `#status` 状态文字切换 `#control-keys` 显隐，localStorage 键 `showControlKeys` 记忆（标记挂 `#control-keys` 自身，避免被 `setStatus` 重写 className 清掉）；增量重打包验证通过（exe 20.1MB）
 - ✅ **官方插件内嵌打包（2026-09-27）**：`plugins/` 直接 `--add-data "plugins;plugins"` 打进 exe 自带层 `_MEI/plugins`，开发/生产两个 build 脚本都加、不区分环境；版本号转正 `v1.6`（待打包验证自带层加载）
 - ✅ **打包脚本统一为 build.cmd 纯 cmd 自动扫描（2026-09-29）**：删 `build-product.cmd`/`build-develop.cmd`/残留 `RemoteConnecter.spec`，单一 `build.cmd`（默认生产隐藏黑窗，`--show-console` 调试）；模块侧 `for /r functions *_bp.py` 循环自动生成 `--hidden-import`（剥 `%~dp0` 前缀 + `\`→`.`），数据侧 `for /d` 循环自动生成 `--add-data`；新增业务零改动（临时 functions/demo 实测：PYZ 自动收 `functions.demo.demo_bp` 且 `/demo` 200，还原后基线 exe 20.10MB、10 条冒烟路由全 200）；**实测修正**：`--collect-submodules functions` 在 spec 求值时返回 0（嵌入式 `_pth` 限制，手动插 sys.path 才返回 15），旧脚本"可用"是缓存假象
-- ✅ **远程终端多终端 + 断线重连（2026-10-01，分支 `feat/term-multi-reconnect`）**：引入 `TermSession` 会话对象 + 全局 `sessionMap` 注册表，将"WS 生命周期==进程生命周期"解耦为"会话独立生命周期"；WS 断开→`_detach` 保活（`DETACH_TIMEOUT=300` 宽限，`_sessionReaper` 10s 扫描回收，`MAX_BACKLOG=20000` 输出队列封顶丢最旧），重连带 `session` 参数 attach 复用进程恢复现场。帧协议扩展：新增 `hello` 帧（attach 后第一帧，含 `resumed` 决定前端是否 reset）、`close` 帧（前→后显式杀会话）、启用 `ping`/`pong` 心跳（前端 15s）。前端 `term.js` 单例改会话数组，新增侧边栏（`#sidebar` 会话列表，`#sidebar-toggle` 切换 + localStorage 记忆）、切前台断开旧 WS 保活、仅前台指数退避重连（`1000*2^(n-1)` 封顶 30s）。`term.html` 加 `#sidebar`+`#main` 包裹，预设按钮改 `createSession(...)`、`#connect` 改"新建"；`term.css` 改 row 布局 + 侧边栏/会话项/窄屏覆盖层样式。**整页刷新不丢终端**：新增 `GET /terminal/api/sessions`（`listSessions`）返回存活会话 `{id,cmd,attached}`，前端 `buildSessionUI` 抽离（供新建/恢复复用）+ `restoreSessions` 在页面加载时拉取列表重建终端并 `switchSession` 重连恢复（`sessionID` 预填走 attach）。架构硬约束全程保留：pywinpty 线程亲和（spawn/read 同线程在 `_reader`）、ws.send 全收敛 WS 主线程、`b'0011Ignore'` 空串≠EOF、Windows write 收 str。**关键启动约束：`app.run` 必须 `threaded=True`**——多会话架构要求并发处理多个连接/请求；不能用 `processes>1`(fork)，因 `sessionMap` 是进程内内存表、winpty 句柄不可跨进程共享。**"Invalid frame header" 真因（2026-10-14 定位）**：flask_sock werkzeug 模式下 handler 返回普通 200 Response，werkzeug `execute()` teardown 会向已升级 socket 补写 `HTTP/1.1 200 OK` 头；浏览器 CLOSING 状态仍在读帧（同页抢占/刷新交接窗口），该字节被解析为非法帧。修复 = `term_bp.py` 的 `_sealSocketAfterClose`（发 close 帧后 `shutdown(SHUT_WR)`，teardown 写入必然 BrokenPipeError 被其 `connection_dropped` 分支静默吞掉）+ 前端 `connectWs` 防抢占守卫（同会话 `readyState<=2` 禁止重复建连，否则服务端失权旧连接触发本 bug）。GetDiagnostics 4 文件全通过
+- ✅ **远程终端多终端 + 断线重连（2026-10-01，分支 `feat/term-multi-reconnect`）**：引入 `TermSession` 会话对象 + 全局 `sessionMap` 注册表，将"WS 生命周期==进程生命周期"解耦为"会话独立生命周期"；WS 断开→`_detach` 保活（`DETACH_TIMEOUT` 宽限，初版 300s，2026-10-17 延至 7200s 见下，`_sessionReaper` 10s 扫描回收，`MAX_BACKLOG=20000` 输出队列封顶丢最旧），重连带 `session` 参数 attach 复用进程恢复现场。帧协议扩展：新增 `hello` 帧（attach 后第一帧，含 `resumed` 决定前端是否 reset）、`close` 帧（前→后显式杀会话）、启用 `ping`/`pong` 心跳（前端 15s）。前端 `term.js` 单例改会话数组，新增侧边栏（`#sidebar` 会话列表，`#sidebar-toggle` 切换 + localStorage 记忆）、切前台断开旧 WS 保活、仅前台指数退避重连（`1000*2^(n-1)` 封顶 30s）。`term.html` 加 `#sidebar`+`#main` 包裹，预设按钮改 `createSession(...)`、`#connect` 改"新建"；`term.css` 改 row 布局 + 侧边栏/会话项/窄屏覆盖层样式。**整页刷新不丢终端**：新增 `GET /terminal/api/sessions`（`listSessions`）返回存活会话 `{id,cmd,attached}`，前端 `buildSessionUI` 抽离（供新建/恢复复用）+ `restoreSessions` 在页面加载时拉取列表重建终端并 `switchSession` 重连恢复（`sessionID` 预填走 attach）。架构硬约束全程保留：pywinpty 线程亲和（spawn/read 同线程在 `_reader`）、ws.send 全收敛 WS 主线程、`b'0011Ignore'` 空串≠EOF、Windows write 收 str。**关键启动约束：`app.run` 必须 `threaded=True`**——多会话架构要求并发处理多个连接/请求；不能用 `processes>1`(fork)，因 `sessionMap` 是进程内内存表、winpty 句柄不可跨进程共享。**"Invalid frame header" 真因（2026-10-14 定位）**：flask_sock werkzeug 模式下 handler 返回普通 200 Response，werkzeug `execute()` teardown 会向已升级 socket 补写 `HTTP/1.1 200 OK` 头；浏览器 CLOSING 状态仍在读帧（同页抢占/刷新交接窗口），该字节被解析为非法帧。修复 = `term_bp.py` 的 `_sealSocketAfterClose`（发 close 帧后 `shutdown(SHUT_WR)`，teardown 写入必然 BrokenPipeError 被其 `connection_dropped` 分支静默吞掉）+ 前端 `connectWs` 防抢占守卫（同会话 `readyState<=2` 禁止重复建连，否则服务端失权旧连接触发本 bug）。GetDiagnostics 4 文件全通过
 - ✅ **刷新恢复画面回放缓冲（2026-10-14，同分支）**：刷新后新 xterm 丢失全部转义序列状态（历史输出/备用屏/鼠标模式 `?1000h`）→ 画面空白 + 鼠标点击/滚轮失效同源。修复：`TermSession.replayBuf`（`REPLAY_MAX=512KB` 滚动缓冲，`enqueueOut` 先 append replayBuf 再 put outQueue）+ `wsTerminal` 重连带 `&replay=1` 时按**快照→清空 outQueue→hello→回放→主循环**顺序（不重不丢；快照与清空间新到的块已入快照、清空后新到的只走队列）；前端一次性标志 `needReplay`（restoreSessions 恢复的 fresh 空终端置 true，hello 到达即消费，同页重连不回放防画面重复）。验证：Python WS 客户端确定性 PASS（回显行恰出现 1 次）+ 浏览器端到端（40KB dir /s 历史完整重建、markOK123 计数=2 无重复、scrollTop 可滚、term.focus() 聚焦正常、控制台零报错）。**测试教训**：`dir /s` 在用户目录跑数分钟会吞掉后续 echo（命令排队非 bug）；多会话页面取画面必须用 `activeSession.term.buffer.active.getLine(i).translateToString(true)`，`querySelector('.xterm-rows')` 会取错 DOM；浏览器代理验证终端输入用 `activeSession.ws.send('cmd\r\n')` 代替合成键盘事件。详见 REPORT-term-ws.md
+- ✅ **v1.7-beta.1 版本号规范化（2026-10-14~17，`43805b0`）**：`v1.7-beta1`→`v1.7-beta.1`（SemVer 预发布格式），改动提交到功能分支后 `git tag -f v1.7-beta.1 43805b0` 强移 tag 并 `push -f` 推 tag（`git tag -f` 精准操作单标签，历史标签全保留）；当时 main 按用户决定停留 v1.6，后经 GitHub PR 合入 main（`3472731`）。CHANGELOG.md 曾创建后按用户要求删除，**更新日志不入库**，发版用 GitHub Release
+- ✅ **DETACH_TIMEOUT 300→7200（2026-10-17，`8b241c6`）**：用户实测后台任务 5 分钟即被 `_sessionReaper` 杀进程；延至 7200s（2 小时）支持长耗时后台执行
+- ✅ **侧边栏覆盖层移植（2026-10-22，分支 `feat/sidebar-overlay`，已合入 main `3d6de69`）**：探测 factorization.top/rsc 的实现模式（`<aside>` fixed + `translateX` 滑入滑出 + 独立遮罩 div，class 切换驱动）移植到本项目：`term.html` 加 `#sidebar-overlay`；`term.css` 将 `#sidebar` 从 flex 推挤布局改为 fixed 覆盖层（`translateX(-100%)→0`，0.25s ease），遮罩淡入淡出，暗色主题半透明+`backdrop-filter: blur(8px)`，删 640px 媒体查询里冗余 fixed 规则；`term.js` 新增 `setSidebarOpen()` 统一同步侧边栏/遮罩 class 与 localStorage 偏好，点遮罩收起；**☰ 展开按钮全视口宽度始终显示**（用户要求，未引入源站 768px 显隐断点）
+- ✅ **侧边栏 X 关闭按钮（2026-10-22，`552bd57`→`d74e808` 回退→`f824fcd` 重实现）**：侧边栏标题"终端"改为 X（SVG）关闭按钮 `#sidebar-close`（32px 圆角，hover 变红 `#f85149`），`#sidebar-head` 加 `gap:8px`。**教训**：首次实现破坏界面布局，用户要求回退到覆盖层重写版（d74e808 整体还原到 519243b），先推送回退态再增量重实现——破坏性前端改动应小步提交
+- ✅ **打包态全量浏览器测试 T1-T6 全过（2026-10-22，dist exe + 浏览器代理）**：T1 会话命令 echo / T2 刷新恢复+回放（`needReplay` 一次性消费）/ T3 快速刷新×3 无 Invalid frame header 与 1006 / T4 多会话前台 connected 后台 detached / T5 侧边栏覆盖层全交互（fixed 定位、遮罩 class 同步、X 按钮与点遮罩收起均生效）/ T6 控制台健康。**踩坑**：旧 exe 孤儿进程残留占 80 端口 → 新实例 500 `TemplateNotFound: term.html`（旧 `_MEI` 无新模板，具迷惑性）——打包测试前必须 `taskkill /IM RemoteConnecter.exe /F` 全清再启动
+- ✅ **分支收尾（2026-10-23）**：临时分支本地+远端全删（`feat/term-multi-reconnect` 随 GitHub PR 合并被远端自动删、`feat/sidebar-overlay` 手动删、残留 worktree-agent-* 分支清理），仅剩 `main` 与 `Win7`；工作区未提交：`utils.py`（v1.7.1-beta.1）、`build.cmd`、`plugins/proxy/*`、`functions/update/repoUpdate.py` 草稿、`.trae/`
+- ✅ **Code 插件 `/code`（2026-10-23，`c0c136c` + 本次 UI 修复）**：VS Code 风格工作台（无 titlebar、活动栏、资源管理器、欢迎页水印、状态栏、终端面板）；Monaco 多标签、Markdown 预览、F5、菜单/命令面板/快捷键；`/code/api/workspaces` 注册根目录后仅传 `workspaceId + 相对路径`，`rc_code_fs.py` 负责沙箱/编码/EOL/ETag/原子保存；内嵌终端复用 `/term` WS，`mode=single` 断线即杀不恢复，multi 保持原行为。**关键坑**：Monaco 的 `editor.main.css` 自带全局 `.codicon[class*=codicon-] { font:16px/1 codicon }`，加载后会覆盖 `code.css` 的图标尺寸/字体，导致刷新时水印与图标突变；UI 图标统一加 `body` 前缀提高优先级，并使用独立 `rc-codicon` 字体，Monaco 内部保留 `codicon`。状态栏不显示运行时列表，运行时仅用于 F5/终端。
 
 ### 进行中 / 待办
 
@@ -158,12 +165,14 @@ RemoteConnecter/
 - ⏳ 修复实时屏幕部分按键不可用的 Bug
 - ✅ 远程终端多终端支持 + 断线重连（2026-10-01，分支 `feat/term-multi-reconnect`，见上方已完成）
 - ⏳ 终端图标改为动态获取，不再使用静态资源
-- ⏳ 加入以 Monaco Editor 为核心的代码编辑器
+- ✅ 加入以 Monaco Editor 为核心的代码编辑器（2026-10-23，`/code`，见上方）
 - ✅ 加入插件功能（v1.6-beta1 已实现）
 - ✅ 加入 proxy 功能（proxy 插件已存在并验证）
 
 #### 工程/打包
 - ✅ 官方插件内嵌打包：直接把仓库 `plugins/` 用 `--add-data "plugins;plugins"` 打进 exe 自带层（`_MEI/plugins`），开发/生产两个 build 脚本都加、不区分环境；**已打包验证**（dist 不放同级 plugins，`/sample`、`/sample/sample`、`/sample/static/sample.js`、`/proxy` 全 200，确认命中 `_MEI` 自带层）
+- ✅ 官方插件仓库独立化（2026-10-23）：`RemoteVSCode` 仅含 `plugins/code` 解包内容（根目录 `code_bp.py`/`lib/`/`static/`/`templates/`/`plugin.json`，单提交 `5284b66`）；`RemoteOffice` 改为仅含 `plugins/office` 解包内容（根目录 `office_bp.py`/`static/`/`templates/`/`plugin.json`，单提交 `7e881ad`，force-push 覆盖旧全量应用 main `250b4e8`）；旧 RemoteOffice 全量历史已备份到 `%TEMP%\opencode\RemoteOffice-backup` 与 `RemoteOffice-latest-preoverwrite-250b4e8.bundle`
+- ✅ **Office 插件 x2t WASM 加载失败修复（2026-10-24，RemoteOffice `b90aca8`）**：纯 HTTP（如 `http://192.168.0.107:8765`）下 Chrome/Edge 请求头只有 `Accept-Encoding: gzip, deflate`（br 仅在 HTTPS 连接上声明），服务端却无条件给 `x2t.wasm.br` 标 `Content-Encoding: br` → 浏览器判 `ERR_CONTENT_DECODING_FAILED`（net_error -330），对外表现为 `fetch() TypeError: Failed to fetch`、`X2T module failed to instantiate: Failed to fetch`、文档打不开。**"curl 正常但浏览器 fetch 失败"是该类编码头错误的典型特征**（curl 不校验未声明的 Content-Encoding），用 Edge `--log-net-log` 抓网络日志定位。修复：`office_bp.py` 预压缩资产（`.br/.gz`）按客户端 `Accept-Encoding` 门控，未声明对应编码时回退同名未压缩副本（`/office/app/` 非模板文件统一走 `serveDistFile`，此前该路由不经编码门控），无副本返回 415。**dist 侧需预置 `sdkjs/common/wasm/x2t/x2t.wasm`**（由 `x2t.wasm.br` brotli 解压出的 42,111,200 字节裸 wasm，已生成于 `%PROGRAMDATA%\RemoteConnecter\office\dist`；重新部署 dist 时需重新生成）。Edge headless 实测文档打开正常、wasm 编译通过。本地 8765 测试服务现由 `%TEMP%\opencode\RemoteOffice-backup` 运行（`run_office_test.py` 已改绑 `0.0.0.0`）
 - ⏳ `.gitignore` 插件策略待定：仓库 `plugins/`（sample/proxy）是官方插件需入库打包；若日后出现用户级/运行时生成的插件目录才需要忽略
 - ⏳ `functions/update/repoUpdate.py`（未跟踪草稿）：仓库更新器，有 bug（`downloadUpdater` 引用未定义的 `availableNodes`，`getRelease()` 返回值未用）
 - ⏳ 生产打包建议关闭 `app.run(debug=True, use_reloader=True)`（frozen 环境下 reloader 会 spawn 双进程：Werkzeug 父子模型导致整脚本执行两遍、插件加载两遍、exe 双份 _MEI 解压；debug=True 的交互式调试器还有任意代码执行风险）
@@ -191,6 +200,14 @@ RemoteConnecter/
 - **插件防撞契约**（实测结论）：蓝图注册名带 id（`f'{pluginID}_bp'`）+ 路由带 id 前缀后，视图函数同名不冲突（endpoint 键 = 蓝图名.函数名）；裸撞蓝图名 Flask 静默改名 `xxx (1)` 导致 url_for 歧义，必须避免
 - **插件静态资源**：放插件目录 `static/`，蓝图 `static_url_path=f'/{id}/static'`；页面引用必须用插件自己的路径（主应用 `static_folder=None`，写 `/static/...` 会触发 RuntimeError: 'static_folder' must be set）
 - **宿主抽离**：`hosts/` 包拆分蓝图宿主与插件宿主，主入口 195→44 行只留装配；`registerModuleBlueprints(app, module)` 供两宿主复用；全量 25 条路由回归通过
+
+### v1.7-beta.1（tag `v1.7-beta.1`，经 GitHub PR 合入 main，现 main 顶 `3d6de69`）
+- **多终端会话 + 断线重连 + 刷新恢复 + 画面回放**（`8213fdf`/`c66e88c`）：核心见"当前状态"2026-10-01/10-14 两条；根因专文 REPORT-term-ws.md
+- **Invalid frame header 修复**：服务端 `_sealSocketAfterClose` + 前端 `connectWs` 防抢占守卫
+- **DETACH_TIMEOUT 300→7200**（`8b241c6`）：后台任务 2 小时保活
+- **侧边栏覆盖层移植 + X 关闭按钮**（`519243b`/`f824fcd`）：fixed 覆盖 + 遮罩 + 滑入动画 + X 收起
+- **构建脚本统一 build.cmd、官方插件 plugins/ 入库内嵌**（`54b120b`/`cc2e487`）
+- **合并/发版方式**：GitHub 网页 PR 合 main → 本地 ff 同步 → 侧边栏分支本地 merge 推送；tag `v1.7-beta.1` 已推远端；临时分支合并后全删
 
 ### v1.5.2（已合并 main）
 - **修复屏幕控制鼠标失效**（beta1）：`screen-control.js` 的 `sendClick` 请求路径多带 `/screen` 前缀导致 404（v1.5-beta1 路由缩短时漏改），统一为 `/screenshot/api/control`。受影响版本 v1.5-beta1~v1.5.1，升级即可修复
