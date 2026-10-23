@@ -8,6 +8,7 @@
     POST /code/api/workspaces          打开工作区
     GET  /code/api/fs/tree             目录列表
     GET  /code/api/fs/search           全工作区文本搜索
+    POST /code/api/fs/replace          全工作区文本替换
     GET  /code/api/fs/list             全工作区文件名列表
     GET  /code/api/fs/file             读取文本
     PUT  /code/api/fs/file             保存文本
@@ -45,6 +46,7 @@ try:
         readTextFile,
         registry,
         renameEntry,
+        replaceInWorkspace,
         saveUpload,
         searchWorkspace,
         writeTextFile,
@@ -68,6 +70,7 @@ except ImportError:
         readTextFile,
         registry,
         renameEntry,
+        replaceInWorkspace,
         saveUpload,
         searchWorkspace,
         writeTextFile,
@@ -154,6 +157,19 @@ def apiSearch():
         request.args.get('query'),
         caseSensitive=_boolValue(request.args.get('case')),
         regex=_boolValue(request.args.get('regex')),
+    ))
+
+
+@code_bp.route('/code/api/fs/replace', methods=['POST'])
+def apiReplace():
+    payload = _jsonBody()
+    workspace = _workspaceFromPayload(payload)
+    return jsonify(replaceInWorkspace(
+        workspace,
+        payload.get('query'),
+        payload.get('replacement', ''),
+        caseSensitive=_boolValue(payload.get('case')),
+        regex=_boolValue(payload.get('regex')),
     ))
 
 

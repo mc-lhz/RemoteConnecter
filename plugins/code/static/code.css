@@ -216,6 +216,29 @@ body .activity-logo .codicon {
     border-color: #007fd4;
 }
 
+.search-replace-row {
+    display: flex;
+    gap: 4px;
+}
+
+.search-replace-row #replace-input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.search-replace-row .icon-button {
+    flex: 0 0 auto;
+    height: 26px;
+    color: #cccccc;
+    background: #3c3c3c;
+    border: 1px solid transparent;
+    border-radius: 2px;
+}
+
+.search-replace-row .icon-button:hover {
+    background: #464647;
+}
+
 button.search-toggle {
     width: 24px;
     font-size: 11px;

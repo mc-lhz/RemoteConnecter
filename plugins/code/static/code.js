@@ -438,6 +438,13 @@
     function openSearchView() {
         setActiveView('search');
         if (dom.searchInput) {
+            if (!dom.searchInput.value && window.CodeEditor.getSelectionText) {
+                const selection = String(window.CodeEditor.getSelectionText() || '').trim();
+                if (selection.length >= 2 && selection.indexOf('\n') < 0 && selection.length <= 100) {
+                    dom.searchInput.value = selection;
+                    runSearch();
+                }
+            }
             dom.searchInput.focus();
             dom.searchInput.select();
         }
@@ -548,6 +555,47 @@
         if (button) { button.classList.toggle('active', state.search[key]); }
         const query = dom.searchInput ? dom.searchInput.value.trim() : '';
         if (query.length >= 2) { runSearch(); }
+    }
+
+    async function replaceAll() {
+        if (!window.CodeAPI.workspaceId) {
+            status('请先打开文件夹', 'error');
+            return;
+        }
+        const query = dom.searchInput ? dom.searchInput.value.trim() : '';
+        if (query.length < 2) {
+            status('请先输入搜索关键词', 'error');
+            return;
+        }
+        const replaceInput = document.getElementById('replace-input');
+        const replacement = replaceInput ? replaceInput.value : '';
+        const modeText = state.search.regex ? '（正则）' : '';
+        const ok = await confirm({
+            title: '全部替换',
+            message: '将在当前搜索结果的全部文件中，把「' + query + '」' + modeText
+                + '替换为「' + replacement + '」。\n有未保存修改的文件会被跳过，此操作不可撤销。继续吗？',
+            confirmText: '替换',
+            danger: true
+        });
+        if (!ok) { return; }
+        try {
+            const result = await window.CodeAPI.replace(query, replacement, {
+                caseSensitive: state.search.caseSensitive,
+                regex: state.search.regex
+            });
+            const conflictNote = result.conflicts && result.conflicts.length
+                ? '，' + result.conflicts.length + ' 个文件因被修改/出错跳过' : '';
+            const truncNote = result.truncated ? '（已达上限，可能未全部替换）' : '';
+            status('已替换 ' + result.totalReplacements + ' 处（'
+                + result.fileCount + ' 个文件）' + conflictNote + truncNote, 'ok');
+            for (let i = 0; i < (result.files || []).length; i++) {
+                window.CodeEditor.reloadPath(result.files[i].path).catch(function () { /* 忽略 */ });
+            }
+            await window.CodeExplorer.refresh();
+            runSearch();
+        } catch (err) {
+            status('替换失败：' + (err.message || String(err)), 'error');
+        }
     }
 
     function resetEditorStatus() {
@@ -856,6 +904,11 @@
             { label: '保存', detail: 'Ctrl+S', icon: 'codicon-save', action: saveActive },
             { label: '刷新资源管理器', icon: 'codicon-refresh', action: refreshExplorer },
             { label: '搜索工作区', detail: 'Ctrl+Shift+F', icon: 'codicon-search', action: openSearchView },
+            { label: '替换（搜索视图内）', detail: 'Ctrl+H', icon: 'codicon-replace-all', action: function () {
+                setActiveView('search');
+                const replaceField = document.getElementById('replace-input');
+                if (replaceField) { setTimeout(function () { replaceField.focus(); }, 0); }
+            } },
             { label: '按名称打开文件', detail: 'Ctrl+P', icon: 'codicon-file', action: showQuickOpen },
             { label: '跳转到行', detail: 'Ctrl+G', icon: 'codicon-arrow-right', action: showGoToLine },
             { label: '新建文件', icon: 'codicon-new-file', action: function () { return window.CodeExplorer.newFile(); } },
@@ -1291,6 +1344,16 @@
                 }
             });
         }
+        const replaceInput = document.getElementById('replace-input');
+        if (replaceInput) {
+            replaceInput.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    replaceAll();
+                }
+            });
+        }
+        bind('btn-replace-all', 'click', replaceAll);
         bind('btn-activity-scm', 'click', function () { placeholderFeature('源代码管理'); });
         bind('btn-activity-debug', 'click', function () { placeholderFeature('运行和调试'); });
         bind('btn-activity-extensions', 'click', function () { placeholderFeature('扩展'); });
@@ -1358,6 +1421,11 @@
             } else if (ctrl && event.shiftKey && key === 'f') {
                 event.preventDefault();
                 openSearchView();
+            } else if (ctrl && !event.shiftKey && key === 'h') {
+                event.preventDefault();
+                setActiveView('search');
+                const replaceField = document.getElementById('replace-input');
+                if (replaceField) { setTimeout(function () { replaceField.focus(); }, 0); }
             } else if (ctrl && !event.shiftKey && key === 'p') {
                 event.preventDefault();
                 showQuickOpen();

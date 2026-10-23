@@ -442,6 +442,89 @@ def listWorkspaceFiles(workspace: Workspace) -> Dict[str, Any]:
     return {'files': rels, 'truncated': truncated}
 
 
+def replaceInWorkspace(
+    workspace: Workspace,
+    query: Optional[str],
+    replacement: Optional[str],
+    caseSensitive: bool = False,
+    regex: bool = False,
+) -> Dict[str, Any]:
+    """按当前搜索语义做全工作区文本替换。
+
+    逐文件 读取→替换→带 etag 写回，文件被并发修改时跳过并计入 conflicts。
+    替换内容始终按字面量处理（不做反向引用展开）。
+    """
+    if not isinstance(query, str) or len(query.strip()) < 2:
+        raise FileServiceError(400, 'invalid_query', '搜索关键词至少需要 2 个字符')
+    query = query.strip()
+    if len(query) > 200:
+        raise FileServiceError(400, 'invalid_query', '搜索关键词过长')
+    if replacement is None:
+        replacement = ''
+    if not isinstance(replacement, str) or len(replacement) > 1000:
+        raise FileServiceError(400, 'invalid_replacement', '替换内容无效或过长')
+    flags = 0 if caseSensitive else re.IGNORECASE
+    try:
+        pattern = re.compile(query if regex else re.escape(query), flags)
+    except re.error as exc:
+        raise FileServiceError(400, 'invalid_regex', '正则表达式无效: {}'.format(exc))
+
+    def literalRepl(_match):
+        return replacement
+
+    files, filesTruncated = _walkWorkspaceFiles(workspace.root, MAX_SEARCH_FILES)
+    changed = []
+    conflicts = []
+    totalReplacements = 0
+    truncated = filesTruncated
+    for full in files:
+        if totalReplacements >= MAX_SEARCH_RESULTS:
+            truncated = True
+            break
+        if os.path.islink(full):
+            continue
+        try:
+            st = os.stat(full)
+        except OSError:
+            continue
+        if st.st_size <= 0 or st.st_size > MAX_SEARCH_FILE_BYTES:
+            continue
+        rel = os.path.relpath(full, workspace.root).replace('\\', '/')
+        try:
+            data = readTextFile(workspace, rel)
+        except FileServiceError:
+            continue
+        newText, count = pattern.subn(literalRepl, data['content'])
+        if not count:
+            continue
+        try:
+            writeTextFile(
+                workspace,
+                rel,
+                newText,
+                encoding=data['encoding'] if data['encoding'] in ('utf-8', 'utf-8-sig', 'gbk') else None,
+                eol=data['eol'] if data['eol'] in ('LF', 'CRLF', 'CR') else None,
+                baseEtag=data['etag'],
+            )
+        except FileServiceError as exc:
+            if exc.status == 409:
+                conflicts.append({'path': rel, 'reason': 'conflict'})
+            else:
+                conflicts.append({'path': rel, 'reason': exc.message})
+            continue
+        changed.append({'path': rel, 'count': count})
+        totalReplacements += count
+
+    return {
+        'query': query,
+        'files': changed,
+        'fileCount': len(changed),
+        'totalReplacements': totalReplacements,
+        'conflicts': conflicts,
+        'truncated': truncated,
+    }
+
+
 def readTextFile(workspace: Workspace, relPath: Optional[str]) -> Dict[str, Any]:
     full, rel = resolvePath(workspace, relPath, mustExist=True)
     if os.path.isdir(full):

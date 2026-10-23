@@ -90,6 +90,12 @@
                 <div class="search-input-row">
                     <input id="search-input" type="text" placeholder="搜索工作区 (Ctrl+Shift+F)" aria-label="搜索工作区" autocomplete="off" spellcheck="false">
                 </div>
+                <div class="search-input-row search-replace-row">
+                    <input id="replace-input" type="text" placeholder="替换为（留空即删除匹配）" aria-label="替换内容" autocomplete="off" spellcheck="false">
+                    <button id="btn-replace-all" class="icon-button small" title="全部替换（当前搜索结果的所有文件）" aria-label="全部替换">
+                        <span class="codicon codicon-replace-all"></span>
+                    </button>
+                </div>
                 <div id="search-summary" class="search-summary hidden"></div>
                 <div id="search-results" class="search-results"></div>
                 <div id="search-empty" class="tree-empty">

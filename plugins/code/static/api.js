@@ -114,6 +114,21 @@
             }));
         },
 
+        replace(query, replacement, options) {
+            const ws = requireWorkspace();
+            const opts = options || {};
+            return request('/code/api/fs/replace', {
+                method: 'POST',
+                body: {
+                    workspaceId: ws.id,
+                    query: query,
+                    replacement: replacement || '',
+                    case: !!opts.caseSensitive,
+                    regex: !!opts.regex
+                }
+            });
+        },
+
         listFiles() {
             const ws = requireWorkspace();
             return request('/code/api/fs/list?' + qs({ workspaceId: ws.id }));
