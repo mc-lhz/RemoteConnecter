@@ -38,6 +38,7 @@ specialKeys = {
     'alt': Key.alt,           'alt_l': Key.alt_l,       'alt_r': Key.alt_r,
     'shift': Key.shift,       'shift_l': Key.shift_l,   'shift_r': Key.shift_r,
     'cmd': Key.cmd,           'cmd_l': Key.cmd_l,       'cmd_r': Key.cmd_r,
+    'alt_gr': getattr(Key, 'alt_gr', Key.alt),
     # ---- 锁定键 ----
     'caps_lock': Key.caps_lock,
     'num_lock': Key.num_lock,
@@ -63,6 +64,7 @@ modifierKeys = {
     'alt': Key.alt,         'alt_l': Key.alt_l,       'alt_r': Key.alt_r,
     'shift': Key.shift,     'shift_l': Key.shift_l,   'shift_r': Key.shift_r,
     'cmd': Key.cmd,         'cmd_l': Key.cmd_l,       'cmd_r': Key.cmd_r,
+    'alt_gr': getattr(Key, 'alt_gr', Key.alt),
 }
 
 
@@ -110,12 +112,16 @@ def screenshotControl():
             return '鼠标点击成功'
 
     elif controlType == 'keyboard':
-        keyString = request.args.get('key', None)
-        if keyString:
-            Log.i('Keyboard', f'收到按键: {keyString}')
-
-            # 解析组合键：ctrl+c → ['ctrl','c']；shift+enter → ['shift','enter']
-            keyList = keyString.lower().split('+')
+        # 支持两种传参：keys 多参数逐键传输（keys=shift&keys=%2B，可表达
+        # 任意字符包括 '+'）；旧版单 key 参数按 '+' 分隔组合键字符串
+        keyList = [k.lower() for k in request.args.getlist('keys') if k]
+        if not keyList:
+            keyString = request.args.get('key', None)
+            if keyString:
+                Log.i('Keyboard', f'收到按键: {keyString}')
+                # 解析组合键：ctrl+c → ['ctrl','c']；shift+enter → ['shift','enter']
+                keyList = keyString.lower().split('+')
+        if keyList:
             modifiers = []   # 记录已按下的修饰键，最后逆序释放
 
             try:

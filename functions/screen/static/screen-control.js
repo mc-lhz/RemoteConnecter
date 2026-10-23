@@ -100,16 +100,21 @@ streamImg.addEventListener('contextmenu', function(e) {
 
 // 当前按下的修饰键集合
 var heldModifiers = new Set();
+// 当前修饰键链是否已产生过输出（普通键已随组合发送，或纯修饰组合已成型发送）
+var modifierComboSent = false;
 
-// pynput 识别的修饰键名映射
+// 前端 KeyboardEvent.key → 后端修饰键名
 var MODIFIER_MAP = {
     'Control': 'ctrl',    'Alt': 'alt',
     'Shift': 'shift',     'Meta': 'cmd',
+    'AltGraph': 'alt_gr',
 };
 
-function sendKey(key) {
-    var url = '/screenshot/api/control?controlType=keyboard&key=' + encodeURIComponent(key);
-    console.log('发送请求:', url);
+// 逐键多参数传输（keys=a&keys=b），可表达任意字符（包括 '+'）
+function sendKeys(keyList) {
+    var url = '/screenshot/api/control?controlType=keyboard';
+    keyList.forEach(function(k) { url += '&keys=' + encodeURIComponent(k); });
+    console.log('发送按键:', keyList.join('+'));
 
     $.get(url)
         .done(function(response) {
@@ -120,17 +125,29 @@ function sendKey(key) {
         });
 }
 
-// 把 JS 的 KeyboardEvent 映射成后端能识别的键名
+function currentModifierList() {
+    // 固定顺序输出，符合真实按键习惯
+    var order = ['ctrl', 'alt', 'shift', 'cmd', 'alt_gr'];
+    return order.filter(function(m) { return heldModifiers.has(m); });
+}
+
+// 把 JS 的 KeyboardEvent 映射成后端能识别的键名；返回 null 表示应忽略
 function keyToName(e) {
-    // 修饰键直接返回
     if (MODIFIER_MAP[e.key]) return MODIFIER_MAP[e.key];
+
+    // 输入法接管（中文输入法组字阶段），无法透传
+    if (e.key === 'Process' || e.key === 'Unidentified') {
+        console.warn('按键被输入法接管已忽略；如需输入英文请先切换输入法');
+        return null;
+    }
+    // 死键（重音组合引导键），忽略
+    if (e.key === 'Dead') { return null; }
 
     // 单字符：字母/数字/符号
     if (e.key.length === 1) return e.key;
 
-    // 特殊键：统一小写
+    // 特殊键：统一小写并对齐名称
     var k = e.key.toLowerCase();
-    // 常见名称对齐
     if (k === 'escape') return 'esc';
     if (k === ' ') return 'space';
     if (k === 'capslock') return 'caps_lock';
@@ -139,45 +156,47 @@ function keyToName(e) {
     if (k === 'pageup') return 'page_up';
     if (k === 'pagedown') return 'page_down';
     if (k === 'printscreen') return 'print_screen';
+    if (k === 'contextmenu') return 'menu';
+    if (k.indexOf('arrow') === 0) return k.slice(5);  // ArrowLeft → left
     return k;
 }
 
 document.addEventListener('keydown', function(e) {
-    console.log('键盘事件:', e.key);  // 调试日志
-
-    var keyName = keyToName(e);
-
-    // 修饰键：只记录状态，不单独发送
+    // 修饰键：只记录状态；组合在普通键到达或纯修饰组合成型时发送
     if (MODIFIER_MAP[e.key]) {
+        if (heldModifiers.size === 0) { modifierComboSent = false; }
         heldModifiers.add(MODIFIER_MAP[e.key]);
-        console.log('修饰键按下:', MODIFIER_MAP[e.key]);
+        // 纯修饰组合（如 Ctrl+Shift 切输入法）在第二个修饰键按下瞬间成型
+        if (heldModifiers.size >= 2 && !modifierComboSent) {
+            sendKeys(currentModifierList());
+            modifierComboSent = true;
+        }
         e.preventDefault();
         return;
     }
 
-    // 收集当前按下的修饰键
-    var keyDownList = [];
-    if (heldModifiers.has('ctrl'))  keyDownList.push('ctrl');
-    if (heldModifiers.has('alt'))   keyDownList.push('alt');
-    if (heldModifiers.has('shift')) keyDownList.push('shift');
-    if (heldModifiers.has('cmd'))   keyDownList.push('cmd');
-    keyDownList.push(keyName);
+    var keyName = keyToName(e);
+    if (keyName === null) { e.preventDefault(); return; }
 
-    var keyDownStr = keyDownList.join('+');
-    console.log('发送组合键:', keyDownStr);
-    sendKey(keyDownStr);
+    sendKeys(currentModifierList().concat([keyName]));
+    modifierComboSent = true;
 
     // 阻止浏览器默认快捷键
     e.preventDefault();
 });
 
 document.addEventListener('keyup', function(e) {
-    if (MODIFIER_MAP[e.key]) {
-        heldModifiers.delete(MODIFIER_MAP[e.key]);
+    if (!MODIFIER_MAP[e.key]) { return; }
+    heldModifiers.delete(MODIFIER_MAP[e.key]);
+    // 孤立修饰键：按下后直接松开且未伴随普通键（单按 Shift 切输入法、
+    // 单按 Alt 呼出菜单栏），在松开瞬间补发一次独立按键
+    if (heldModifiers.size === 0 && !modifierComboSent) {
+        sendKeys([MODIFIER_MAP[e.key]]);
     }
 });
 
 // 窗口失焦时清空修饰键状态（防止卡键）
 window.addEventListener('blur', function() {
     heldModifiers.clear();
+    modifierComboSent = false;
 });
