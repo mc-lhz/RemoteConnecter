@@ -157,6 +157,11 @@ RemoteConnecter/
 - ✅ **分支收尾（2026-10-23）**：临时分支本地+远端全删（`feat/term-multi-reconnect` 随 GitHub PR 合并被远端自动删、`feat/sidebar-overlay` 手动删、残留 worktree-agent-* 分支清理），仅剩 `main` 与 `Win7`；工作区未提交：`utils.py`（v1.7.1-beta.1）、`build.cmd`、`plugins/proxy/*`、`functions/update/repoUpdate.py` 草稿、`.trae/`
 - ✅ **Code 插件 `/code`（2026-10-23，`c0c136c` + 本次 UI 修复）**：VS Code 风格工作台（无 titlebar、活动栏、资源管理器、欢迎页水印、状态栏、终端面板）；Monaco 多标签、Markdown 预览、F5、菜单/命令面板/快捷键；`/code/api/workspaces` 注册根目录后仅传 `workspaceId + 相对路径`，`rc_code_fs.py` 负责沙箱/编码/EOL/ETag/原子保存；内嵌终端复用 `/term` WS，`mode=single` 断线即杀不恢复，multi 保持原行为。**关键坑**：Monaco 的 `editor.main.css` 自带全局 `.codicon[class*=codicon-] { font:16px/1 codicon }`，加载后会覆盖 `code.css` 的图标尺寸/字体，导致刷新时水印与图标突变；UI 图标统一加 `body` 前缀提高优先级，并使用独立 `rc-codicon` 字体，Monaco 内部保留 `codicon`。状态栏不显示运行时列表，运行时仅用于 F5/终端。
 
+### 分支结构（2026-10-24 重组）
+- `feat/app-improvements`：主程序非插件功能合集（term 多模式/版本号/打包修复/.trae 文档/repoUpdate/debug 门控/文件列表/屏幕键盘/MEMORY），基于 main
+- `feat/auto-dev-2`：屏幕鼠标增强 + process 插件（原基于 temp/code-editor，该分支已删，插件源码权威在 RemoteVSCode `e6554d8`）
+- ~~`temp/code-editor`~~ **已删除**（2026-10-24）：plugins/code 部分完整镜像于 github.com/mc-lhz/RemoteVSCode，非插件部分抽至 feat/app-improvements，删除前三重验证通过
+
 ### 进行中 / 待办
 
 #### 产品功能（来源：GitHub release v1.5.3-beta2 的 Todo List，2 项已完成）
