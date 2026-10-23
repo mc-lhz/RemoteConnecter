@@ -16,7 +16,11 @@
             regex: false,
             token: 0,
             timer: null
-        }
+        },
+        quickOpen: null,
+        quickFiles: null,
+        quickStamp: 0,
+        quickTruncated: false
     };
 
     const dom = {};
@@ -830,6 +834,7 @@
             { label: '运行当前文件', icon: 'codicon-play', shortcut: 'F5', action: runActive },
             { separator: true },
             { label: '搜索工作区...', icon: 'codicon-search', shortcut: 'Ctrl+Shift+F', action: openSearchView },
+            { label: '按名称打开文件...', icon: 'codicon-file', shortcut: 'Ctrl+P', action: showQuickOpen },
             { label: '命令面板...', icon: 'codicon-symbol-color', shortcut: 'Ctrl+Shift+P', action: showCommandPalette },
             { label: '设置', icon: 'codicon-settings-gear', shortcut: 'Ctrl+,', action: openSettings },
             { label: '关于 Code', icon: 'codicon-info', action: aboutCode }
@@ -849,6 +854,7 @@
             { label: '保存', detail: 'Ctrl+S', icon: 'codicon-save', action: saveActive },
             { label: '刷新资源管理器', icon: 'codicon-refresh', action: refreshExplorer },
             { label: '搜索工作区', detail: 'Ctrl+Shift+F', icon: 'codicon-search', action: openSearchView },
+            { label: '按名称打开文件', detail: 'Ctrl+P', icon: 'codicon-file', action: showQuickOpen },
             { label: '新建文件', icon: 'codicon-new-file', action: function () { return window.CodeExplorer.newFile(); } },
             { label: '新建文件夹', icon: 'codicon-new-folder', action: function () { return window.CodeExplorer.newFolder(); } },
             { label: '上传文件', icon: 'codicon-cloud-upload', action: function () { window.CodeExplorer.requestUpload(); } },
@@ -970,6 +976,185 @@
     }
 
     // -----------------------------------------------------------------------
+    // Ctrl+P 按名称快速打开文件
+    // -----------------------------------------------------------------------
+
+    const QUICK_OPEN_TTL = 15000;
+    const QUICK_OPEN_MAX_ITEMS = 50;
+
+    async function loadQuickOpenFiles(force) {
+        const now = Date.now();
+        if (!force && state.quickFiles && now - state.quickStamp < QUICK_OPEN_TTL) {
+            return state.quickFiles;
+        }
+        const data = await window.CodeAPI.listFiles();
+        state.quickFiles = data.files || [];
+        state.quickTruncated = !!data.truncated;
+        state.quickStamp = now;
+        return state.quickFiles;
+    }
+
+    function fuzzyScore(query, target) {
+        let score = 0;
+        let qi = 0;
+        let last = -2;
+        for (let ti = 0; ti < target.length && qi < query.length; ti++) {
+            if (target[ti] === query[qi]) {
+                score += (ti === last + 1) ? 8 : 4;
+                if (ti === 0 || '/\\.-_ '.indexOf(target[ti - 1]) >= 0) { score += 6; }
+                last = ti;
+                qi++;
+            }
+        }
+        if (qi < query.length) { return -1; }
+        return score - target.length * 0.05;
+    }
+
+    function filterQuickOpen(files, query) {
+        const q = query.trim().toLowerCase();
+        if (!q) {
+            return files.slice(0, 200).map(function (path) { return { path: path, score: 0 }; });
+        }
+        const scored = [];
+        files.forEach(function (path) {
+            const name = path.slice(path.lastIndexOf('/') + 1);
+            let score = fuzzyScore(q, name.toLowerCase());
+            if (score < 0) { score = fuzzyScore(q, path.toLowerCase()) - 2; }
+            if (score >= 0) { scored.push({ path: path, score: score }); }
+        });
+        scored.sort(function (a, b) { return b.score - a.score; });
+        return scored.slice(0, 200);
+    }
+
+    function closeQuickOpen() {
+        if (!state.quickOpen) { return; }
+        const quick = state.quickOpen;
+        state.quickOpen = null;
+        if (quick.backdrop && quick.backdrop.parentNode) {
+            quick.backdrop.parentNode.removeChild(quick.backdrop);
+        }
+    }
+
+    async function showQuickOpen() {
+        if (state.quickOpen) {
+            closeQuickOpen();
+            return;
+        }
+        if (!window.CodeAPI.workspaceId) {
+            status('请先打开文件夹', 'error');
+            return;
+        }
+        closeMenu();
+        closeCommandPalette();
+
+        const backdrop = el('div', 'command-palette-backdrop');
+        const palette = el('div', 'command-palette');
+        const input = el('input', 'command-palette-input');
+        input.type = 'text';
+        input.placeholder = state.quickTruncated ? '输入文件名（列表超大已截断）' : '输入文件名快速打开';
+        input.setAttribute('aria-label', '快速打开文件');
+        const list = el('div', 'command-palette-list');
+        palette.appendChild(input);
+        palette.appendChild(list);
+        backdrop.appendChild(palette);
+        document.body.appendChild(backdrop);
+
+        let files = null;
+        let loadError = '';
+        let matches = [];
+        let selected = 0;
+
+        function openPath(index) {
+            const item = matches[index];
+            if (!item) { return; }
+            closeQuickOpen();
+            window.CodeEditor.openFile(item.path).then(function () {
+                status('已打开：' + item.path, 'ok');
+            }).catch(function (err) {
+                status('打开失败：' + (err.message || String(err)), 'error');
+            });
+        }
+
+        function render() {
+            list.innerHTML = '';
+            if (loadError) {
+                list.appendChild(el('div', 'command-palette-empty', loadError));
+                return;
+            }
+            if (files === null) {
+                list.appendChild(el('div', 'command-palette-empty', '正在加载文件列表…'));
+                return;
+            }
+            matches = filterQuickOpen(files, input.value).slice(0, QUICK_OPEN_MAX_ITEMS);
+            if (selected >= matches.length) { selected = Math.max(0, matches.length - 1); }
+            if (!matches.length) {
+                list.appendChild(el('div', 'command-palette-empty', '没有匹配的文件'));
+                return;
+            }
+            matches.forEach(function (item, index) {
+                const name = item.path.slice(item.path.lastIndexOf('/') + 1);
+                const dir = item.path.slice(0, item.path.length - name.length);
+                const button = el('button', 'command-palette-item' + (index === selected ? ' selected' : ''));
+                button.type = 'button';
+                button.appendChild(el('span', 'codicon codicon-file-code'));
+                button.appendChild(el('span', 'command-label', name));
+                if (dir) {
+                    button.appendChild(el('span', 'command-detail', dir));
+                }
+                button.title = item.path;
+                button.addEventListener('click', function () { openPath(index); });
+                list.appendChild(button);
+            });
+            const current = list.querySelector('.command-palette-item.selected');
+            if (current && current.scrollIntoView) {
+                current.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        loadQuickOpenFiles().then(function (loaded) {
+            files = loaded;
+            if (state.quickOpen) { render(); }
+        }).catch(function (err) {
+            loadError = '文件列表加载失败：' + (err.message || String(err));
+            if (state.quickOpen) { render(); }
+        });
+
+        input.addEventListener('input', render);
+        input.addEventListener('keydown', function (event) {
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                event.stopPropagation();
+                if (matches.length) {
+                    selected = (selected + 1) % matches.length;
+                    render();
+                }
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                event.stopPropagation();
+                if (matches.length) {
+                    selected = (selected - 1 + matches.length) % matches.length;
+                    render();
+                }
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                openPath(selected);
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                closeQuickOpen();
+            }
+        });
+        backdrop.addEventListener('mousedown', function (event) {
+            if (event.target === backdrop) { closeQuickOpen(); }
+        });
+
+        state.quickOpen = { close: closeQuickOpen, backdrop: backdrop };
+        render();
+        setTimeout(function () { input.focus(); }, 0);
+    }
+
+    // -----------------------------------------------------------------------
     // 事件绑定 / 启动
     // -----------------------------------------------------------------------
 
@@ -1084,6 +1269,8 @@
             loadRuntimes();
             if (dom.searchInput) { dom.searchInput.value = ''; }
             clearSearchResults();
+            state.quickFiles = null;
+            state.quickStamp = 0;
         });
 
         window.addEventListener('keydown', function (event) {
@@ -1095,6 +1282,9 @@
             } else if (ctrl && event.shiftKey && key === 'f') {
                 event.preventDefault();
                 openSearchView();
+            } else if (ctrl && !event.shiftKey && key === 'p') {
+                event.preventDefault();
+                showQuickOpen();
             } else if (event.altKey && !ctrl && key === 'c' && state.activeView === 'search') {
                 event.preventDefault();
                 toggleSearchOption('caseSensitive');
@@ -1133,6 +1323,7 @@
             } else if (event.key === 'Escape') {
                 closeMenu();
                 closeCommandPalette();
+                closeQuickOpen();
             }
         });
 
