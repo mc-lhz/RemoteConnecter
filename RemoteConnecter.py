@@ -49,8 +49,12 @@ if __name__ == '__main__':
         Log.e('宿主', f'宿主初始化报错: {e}')
     Log.i('Main', getPythonVersion())
     # threaded=True 必须: 多会话架构要求并发处理多个连接/请求
-    # (sessionMap 是进程内内存表, winpty 句柄不可跨进程共享, 故不能用 processes>1)。    
+    # (sessionMap 是进程内内存表, winpty 句柄不可跨进程共享, 故不能用 processes>1)。
     # 注: 此前的 "Invalid frame header" 并非线程数问题, 真因是 werkzeug teardown
     # 在 handler 返回后向已升级 socket 补写 HTTP 200 响应头, 已由
     # functions/term/term_bp.py 的 _sealSocketAfterClose (SHUT_WR 封锁) 修复。
-    app.run(host='0.0.0.0', port=80, debug=True, use_reloader=True, threaded=True)
+    # debug/reloader 仅开发态启用：frozen 下 reloader 会 spawn 双进程
+    # (整脚本执行两遍、插件加载两遍、exe 双份 _MEI 解压)，且 debug 调试器
+    # 有任意代码执行风险；开发态可用 RC_DEBUG=0 临时关闭。
+    debugMode = (not isPackaged()) and os.environ.get('RC_DEBUG', '') != '0'
+    app.run(host='0.0.0.0', port=80, debug=debugMode, use_reloader=debugMode, threaded=True)
