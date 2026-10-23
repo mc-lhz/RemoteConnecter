@@ -71,9 +71,10 @@ def terminal():
 def listSessions():
     """列出当前存活会话 (供前端刷新后恢复终端列表)。
 
-    返回: {"sessions":[{"id":..,"cmd":..,"attached":bool}, ...]}
-    仅返回 alive 的会话; 进程已退出的会话已被 _reader 移出注册表, 不在此列。
+    返回: {"sessions":[{"id":..,"cmd":..,"attached":bool,"mode":..}, ...]}
+    默认只返回 multi 会话; mode=all 返回全部, mode=single 只返回单次会话。
     """
+    modeFilter = request.args.get('mode') or 'multi'
     with sessionMapLock:
         snapshot = list(sessionMap.values())
     items = []
@@ -83,7 +84,10 @@ def listSessions():
             attached = (session.attached is not None)
         if not alive:
             continue
-        items.append({'id': session.sessionID, 'cmd': session.cmd, 'attached': attached})
+        if modeFilter != 'all' and session.mode != modeFilter:
+            continue
+        items.append({'id': session.sessionID, 'cmd': session.cmd,
+                      'attached': attached, 'mode': session.mode})
     return jsonify({'sessions': items})
 
 
@@ -167,10 +171,11 @@ class TermSession:
     进程句柄由 reader 线程创建 (pywinpty 线程亲和性), 经 self.proc 共享。
     """
 
-    def __init__(self, sessionID, cmd, cwd):
+    def __init__(self, sessionID, cmd, cwd, mode='multi'):
         self.sessionID = sessionID
         self.cmd = cmd
         self.cwd = cwd
+        self.mode = mode            # multi=保活/可重连; single=WS 断开即终止
         self.proc = None            # reader 线程内创建 (spawn 与 read 必须同线程)
         self.alive = False          # spawn 成功置 True; 进程退出/启动失败置 False
         self.attached = None        # 当前附着 ws (单附着)
@@ -204,9 +209,9 @@ class TermSession:
                 break
 
 
-def newSession(cmd, cwd):
+def newSession(cmd, cwd, mode='multi'):
     """创建新会话: 建 TermSession -> 入注册表 -> 启动 reader 线程 -> 惰性启动回收线程。"""
-    session = TermSession(uuid.uuid4().hex, cmd, cwd)
+    session = TermSession(uuid.uuid4().hex, cmd, cwd, mode=mode)
     with sessionMapLock:
         sessionMap[session.sessionID] = session
     _startReaper()
@@ -309,7 +314,8 @@ def _sessionReaper():
             snapshot = list(sessionMap.values())
         for session in snapshot:
             with session.sessionLock:
-                idle = (session.alive
+                idle = (session.mode == 'multi'
+                        and session.alive
                         and session.attached is None
                         and (now - session.lastDetachAt) > DETACH_TIMEOUT)
             if idle:
@@ -324,6 +330,14 @@ def _detach(session, ws):
             session.attached = None
             session.lastDetachAt = time.time()
             Log.i('term', f'detach session={session.sessionID}')
+
+
+def _releaseSession(session, ws):
+    """WS 结束时的释放策略: multi 保活, single 立即杀进程。"""
+    if session.mode == 'single':
+        terminateSession(session)
+    else:
+        _detach(session, ws)
 
 
 def _sealSocketAfterClose(ws, timeout=2.0):
@@ -378,18 +392,21 @@ def wsTerminal(ws):
     cmd = request.args.get('cmd') or 'cmd.exe'
     cwd = request.args.get('cwd') or os.path.expanduser('~')
     sessionID = request.args.get('session') or None
+    mode = request.args.get('mode') or 'multi'
+    if mode not in ('single', 'multi'):
+        mode = 'multi'
 
-    # 命中存活会话则 attach 复用进程 (断线重连), 否则新开会话
+    # 只有 multi 模式才允许按 session 重连; single 每次连接都是新会话。
     session = None
     resumed = False
-    if sessionID:
+    if mode == 'multi' and sessionID:
         with sessionMapLock:
             candidate = sessionMap.get(sessionID)
-        if candidate is not None and candidate.alive:
+        if candidate is not None and candidate.alive and candidate.mode == 'multi':
             session = candidate
             resumed = True
     if session is None:
-        session = newSession(cmd, cwd)
+        session = newSession(cmd, cwd, mode=mode)
 
     # 抢占式接管: 直接覆盖 attached。旧附着者不跨线程 close (规避 wsproto 线程安全),
     # 其主循环靠下面的"失权检测"自行退出。
@@ -405,15 +422,16 @@ def wsTerminal(ws):
             ws.close()
         except Exception:
             pass
-        _detach(session, ws)
+        _releaseSession(session, ws)
         _sealSocketAfterClose(ws)
         return
 
     # 画面回放: 前端 fresh 恢复时带 replay=1, 先回放历史输出再接实时流, 重建
-    # 画面与转义序列状态 (备用屏/鼠标模式等)。顺序保证不重不丢:
+    # 画面与转义序列状态 (备用屏/鼠标模式等)。single 模式从不回放。
+    # 顺序保证不重不丢:
     #   ① enqueueOut 先 append replayBuf 再 put outQueue -> 积压 ⊆ 快照
     #   ② 快照后清空 outQueue 丢弃重复积压; 此后新输出只走队列, 主循环时序在回放后
-    wantReplay = resumed and request.args.get('replay') == '1'
+    wantReplay = mode == 'multi' and resumed and request.args.get('replay') == '1'
     replaySnapshot = []
     if wantReplay:
         replaySnapshot = list(session.replayBuf)
@@ -426,7 +444,8 @@ def wsTerminal(ws):
     # hello 帧必须在主循环前发出, 保证前端 reset 决策先于任何输出。
     try:
         ws.send(json.dumps({'type': 'hello', 'session': session.sessionID,
-                            'resumed': resumed, 'cmd': cmd}, ensure_ascii=False))
+                            'resumed': resumed, 'cmd': cmd, 'mode': mode},
+                           ensure_ascii=False))
     except Exception:
         pass
 
@@ -506,7 +525,7 @@ def wsTerminal(ws):
     except Exception:
         pass
     finally:
-        _detach(session, ws)
+        _releaseSession(session, ws)
         # 修复 Invalid frame header: 发 close 帧并封锁写方向, 阻断 werkzeug teardown
         # 补写的 HTTP 200 被浏览器当 WebSocket 帧解析 (证据见 debug-ws-invalid-frame-header.md)
         _sealSocketAfterClose(ws)

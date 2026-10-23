@@ -49,7 +49,7 @@ if __name__ == '__main__':
         Log.e('宿主', f'宿主初始化报错: {e}')
     Log.i('Main', getPythonVersion())
     # threaded=True 必须: 多会话架构要求并发处理多个连接/请求
-    # (sessionMap 是进程内内存表, winpty 句柄不可跨进程共享, 故不能用 processes>1)。
+    # (sessionMap 是进程内内存表, winpty 句柄不可跨进程共享, 故不能用 processes>1)。    
     # 注: 此前的 "Invalid frame header" 并非线程数问题, 真因是 werkzeug teardown
     # 在 handler 返回后向已升级 socket 补写 HTTP 200 响应头, 已由
     # functions/term/term_bp.py 的 _sealSocketAfterClose (SHUT_WR 封锁) 修复。

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code - RemoteConnecter</title>
+    <link rel="stylesheet" href="{{ url_for(pluginID ~ '_bp.static', filename='vendor/codicons/codicon.css') }}">
+    <link rel="stylesheet" href="/term/static/xterm.min.css">
+    <link rel="stylesheet" href="{{ url_for(pluginID ~ '_bp.static', filename='code.css') }}">
+</head>
+<body>
+<div id="code-app" class="code-app">
+    <header class="titlebar">
+        <div class="titlebar-left">
+            <button id="btn-toggle-sidebar" class="icon-button titlebar-menu" title="切换资源管理器">
+                <span class="codicon codicon-menu"></span>
+            </button>
+            <span class="titlebar-brand"><span class="codicon codicon-code"></span><span>Code</span></span>
+        </div>
+        <div class="titlebar-center"><span id="workspace-title">未打开文件夹</span></div>
+        <div class="titlebar-right">
+            <button id="btn-open-folder" class="toolbar-button">
+                <span class="codicon codicon-folder-opened"></span><span>打开文件夹</span>
+            </button>
+            <button id="btn-save" class="icon-button" title="保存 (Ctrl+S)" disabled>
+                <span class="codicon codicon-save"></span>
+            </button>
+            <button id="btn-refresh" class="icon-button" title="刷新资源管理器">
+                <span class="codicon codicon-refresh"></span>
+            </button>
+            <button id="btn-terminal-toggle" class="icon-button" title="终端 (Ctrl+`)">
+                <span class="codicon codicon-terminal"></span>
+            </button>
+        </div>
+    </header>
+
+    <div class="workbench">
+        <nav class="activitybar" aria-label="活动栏">
+            <button class="activity-item active" title="资源管理器">
+                <span class="codicon codicon-files"></span>
+            </button>
+            <button id="btn-open-folder-activity" class="activity-item" title="打开文件夹">
+                <span class="codicon codicon-folder-opened"></span>
+            </button>
+            <div class="activity-spacer"></div>
+            <button class="activity-item" title="设置（后续版本）" disabled>
+                <span class="codicon codicon-settings-gear"></span>
+            </button>
+        </nav>
+
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-title">
+                <span>资源管理器</span>
+                <div class="sidebar-actions">
+                    <button id="btn-new-file" class="icon-button small" title="新建文件" disabled>
+                        <span class="codicon codicon-new-file"></span>
+                    </button>
+                    <button id="btn-new-folder" class="icon-button small" title="新建文件夹" disabled>
+                        <span class="codicon codicon-new-folder"></span>
+                    </button>
+                    <button id="btn-upload" class="icon-button small" title="上传文件" disabled>
+                        <span class="codicon codicon-cloud-upload"></span>
+                    </button>
+                    <button id="btn-collapse" class="icon-button small" title="全部折叠">
+                        <span class="codicon codicon-collapse-all"></span>
+                    </button>
+                </div>
+            </div>
+            <div id="workspace-summary" class="workspace-summary">
+                <button id="btn-open-folder-sidebar" class="open-folder-button">
+                    <span class="codicon codicon-folder-opened"></span><span>打开文件夹</span>
+                </button>
+                <div id="workspace-path" class="workspace-path hidden"></div>
+            </div>
+            <div id="file-tree" class="file-tree" role="tree"></div>
+            <div id="tree-empty" class="tree-empty">
+                <span class="codicon codicon-folder"></span>
+                <p>尚未打开文件夹</p>
+                <button id="btn-open-folder-empty" class="text-button">打开文件夹</button>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <div id="tabbar" class="tabbar hidden"></div>
+            <div id="breadcrumbs" class="breadcrumbs hidden">
+                <div id="breadcrumb-path" class="breadcrumb-path"></div>
+                <div class="breadcrumb-actions">
+                    <button id="btn-preview" class="icon-button small hidden" title="Markdown 预览 (Ctrl+Shift+V)">
+                        <span class="codicon codicon-preview"></span>
+                    </button>
+                </div>
+            </div>
+            <div class="editor-stack">
+                <div id="welcome" class="welcome">
+                    <div class="welcome-logo"><span class="codicon codicon-code"></span></div>
+                    <h1>RemoteConnecter Code</h1>
+                    <p>在浏览器中打开远程文件夹，编辑、预览并运行代码。</p>
+                    <button id="welcome-open" class="primary-button">
+                        <span class="codicon codicon-folder-opened"></span><span>打开文件夹</span>
+                    </button>
+                    <div class="welcome-shortcuts">
+                        <div><kbd>Ctrl</kbd> + <kbd>S</kbd><span>保存</span></div>
+                        <div><kbd>Ctrl</kbd> + <kbd>`</kbd><span>终端</span></div>
+                        <div><kbd>F5</kbd><span>运行当前文件</span></div>
+                    </div>
+                </div>
+                <div id="editor-host" class="editor-host hidden"></div>
+                <div id="markdown-preview" class="markdown-preview hidden"></div>
+            </div>
+        </main>
+    </div>
+
+    <section id="terminal-panel" class="terminal-panel hidden">
+        <div class="panel-header">
+            <div class="panel-title">
+                <span class="codicon codicon-terminal"></span><span>终端</span>
+            </div>
+            <div class="panel-actions">
+                <button id="btn-term-new" class="icon-button small" title="新建终端">
+                    <span class="codicon codicon-add"></span>
+                </button>
+                <button id="btn-term-kill" class="icon-button small" title="终止终端">
+                    <span class="codicon codicon-trash"></span>
+                </button>
+                <button id="btn-term-hide" class="icon-button small" title="隐藏终端">
+                    <span class="codicon codicon-close"></span>
+                </button>
+            </div>
+        </div>
+        <div class="terminal-body">
+            <div id="terminal"></div>
+            <span id="code-term-status" class="sr-only"></span>
+        </div>
+    </section>
+
+    <footer class="statusbar">
+        <div class="status-left">
+            <span id="status-workspace" class="status-item">无工作区</span>
+        </div>
+        <div class="status-right">
+            <span id="status-message" class="status-item status-message"></span>
+            <span id="status-runtimes" class="status-item"></span>
+            <span id="status-eol" class="status-item">LF</span>
+            <span id="status-encoding" class="status-item">UTF-8</span>
+            <span id="status-position" class="status-item">Ln 1, Col 1</span>
+        </div>
+    </footer>
+</div>
+
+<div id="modal-root"></div>
+<input id="file-upload" type="file" multiple hidden>
+
+<script src="{{ url_for(pluginID ~ '_bp.static', filename='vendor/marked/marked.umd.js') }}"></script>
+<script src="{{ url_for(pluginID ~ '_bp.static', filename='vendor/purify/purify.min.js') }}"></script>
+<script src="/term/static/xterm.min.js"></script>
+<script src="/term/static/xterm-addon-fit.min.js"></script>
+<script src="{{ url_for(pluginID ~ '_bp.static', filename='vendor/monaco/min/vs/loader.js') }}"></script>
+<script src="{{ url_for(pluginID ~ '_bp.static', filename='api.js') }}"></script>
+<script src="{{ url_for(pluginID ~ '_bp.static', filename='markdown.js') }}"></script>
+<script src="{{ url_for(pluginID ~ '_bp.static', filename='editor.js') }}"></script>
+<script src="{{ url_for(pluginID ~ '_bp.static', filename='explorer.js') }}"></script>
+<script src="{{ url_for(pluginID ~ '_bp.static', filename='terminal.js') }}"></script>
+<script src="/term/static/term.js"></script>
+<script src="{{ url_for(pluginID ~ '_bp.static', filename='code.js') }}"></script>
+</body>
+</html>
