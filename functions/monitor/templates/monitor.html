@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统面板</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/monitor/static/monitor.css">
+</head>
+<body>
+    <header class="stats card">
+        <div class="stat"><span class="stat-label">主机</span><span class="stat-value" id="st-host">--</span></div>
+        <div class="stat"><span class="stat-label">运行</span><span class="stat-value" id="st-uptime">--</span></div>
+        <div class="stat"><span class="stat-label">CPU</span><span class="stat-value" id="st-cpu">--</span></div>
+        <div class="stat"><span class="stat-label">内存</span><span class="stat-value" id="st-mem">--</span></div>
+        <div class="stat" id="st-disk-c"><span class="stat-label">C:</span><span class="stat-value">--</span></div>
+        <div class="stat" id="st-disk-d"><span class="stat-label">D:</span><span class="stat-value">--</span></div>
+        <div class="pills" id="pills"></div>
+    </header>
+
+    <div class="layout">
+        <aside class="side">
+            <section class="card">
+                <h2>快动作</h2>
+                <div class="action-grid">
+                    <button data-action="volume_down">音量 -</button>
+                    <button data-action="volume_up">音量 +</button>
+                    <button data-action="volume_mute">静音</button>
+                    <button data-action="media_play">播放/暂停</button>
+                    <button data-action="lock">锁屏</button>
+                    <button data-action="monitor_off">关显示器</button>
+                    <button data-action="sleep">睡眠</button>
+                    <button onclick="window.open('/screenshot', '_blank')">看屏幕</button>
+                </div>
+            </section>
+            <section class="card">
+                <h2>电源</h2>
+                <div class="power-row">
+                    <button data-action="restart" class="ghost">重启</button>
+                    <button data-action="shutdown" class="danger">关机</button>
+                </div>
+                <p class="hint">重启/关机会中断远程；平台在启动文件夹自启；重启后若有人登录才会恢复。</p>
+            </section>
+        </aside>
+
+        <section class="card proc-card">
+            <div class="tabs">
+                <button class="tab active" data-tab="processes">进程</button>
+                <button class="tab" data-tab="windows">窗口</button>
+                <button class="tab" data-tab="apps">应用</button>
+            </div>
+            <div class="toolbar">
+                <input id="proc-search" type="text" placeholder="搜索进程...">
+                <button id="sort-mem" class="ghost">按内存</button>
+            </div>
+            <div id="pane-processes" class="pane active">
+                <div id="proc-list" class="list"></div>
+            </div>
+            <div id="pane-windows" class="pane">
+                <div id="win-list" class="list"></div>
+            </div>
+            <div id="pane-apps" class="pane">
+                <div id="app-list" class="app-grid"></div>
+            </div>
+        </section>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+    <script src="/monitor/static/monitor.js"></script>
+</body>
+</html>
