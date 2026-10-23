@@ -20,7 +20,8 @@
         quickOpen: null,
         quickFiles: null,
         quickStamp: 0,
-        quickTruncated: false
+        quickTruncated: false,
+        gotoLine: null
     };
 
     const dom = {};
@@ -835,6 +836,7 @@
             { separator: true },
             { label: '搜索工作区...', icon: 'codicon-search', shortcut: 'Ctrl+Shift+F', action: openSearchView },
             { label: '按名称打开文件...', icon: 'codicon-file', shortcut: 'Ctrl+P', action: showQuickOpen },
+            { label: '跳转到行...', icon: 'codicon-arrow-right', shortcut: 'Ctrl+G', action: showGoToLine },
             { label: '命令面板...', icon: 'codicon-symbol-color', shortcut: 'Ctrl+Shift+P', action: showCommandPalette },
             { label: '设置', icon: 'codicon-settings-gear', shortcut: 'Ctrl+,', action: openSettings },
             { label: '关于 Code', icon: 'codicon-info', action: aboutCode }
@@ -855,6 +857,7 @@
             { label: '刷新资源管理器', icon: 'codicon-refresh', action: refreshExplorer },
             { label: '搜索工作区', detail: 'Ctrl+Shift+F', icon: 'codicon-search', action: openSearchView },
             { label: '按名称打开文件', detail: 'Ctrl+P', icon: 'codicon-file', action: showQuickOpen },
+            { label: '跳转到行', detail: 'Ctrl+G', icon: 'codicon-arrow-right', action: showGoToLine },
             { label: '新建文件', icon: 'codicon-new-file', action: function () { return window.CodeExplorer.newFile(); } },
             { label: '新建文件夹', icon: 'codicon-new-folder', action: function () { return window.CodeExplorer.newFolder(); } },
             { label: '上传文件', icon: 'codicon-cloud-upload', action: function () { window.CodeExplorer.requestUpload(); } },
@@ -1155,6 +1158,79 @@
     }
 
     // -----------------------------------------------------------------------
+    // Ctrl+G 跳转到行
+    // -----------------------------------------------------------------------
+
+    function closeGoToLine() {
+        if (!state.gotoLine) { return; }
+        const box = state.gotoLine;
+        state.gotoLine = null;
+        if (box.backdrop && box.backdrop.parentNode) {
+            box.backdrop.parentNode.removeChild(box.backdrop);
+        }
+    }
+
+    function showGoToLine() {
+        if (state.gotoLine) {
+            closeGoToLine();
+            return;
+        }
+        const tab = window.CodeEditor.getActiveTab();
+        if (!tab) {
+            status('没有打开的文件', 'error');
+            return;
+        }
+        closeMenu();
+        closeCommandPalette();
+        closeQuickOpen();
+
+        const backdrop = el('div', 'command-palette-backdrop');
+        const palette = el('div', 'command-palette');
+        const input = el('input', 'command-palette-input');
+        input.type = 'text';
+        input.placeholder = '输入行号 (1-' + tab.model.getLineCount() + ')';
+        input.setAttribute('aria-label', '跳转到行');
+        const list = el('div', 'command-palette-list');
+        const hint = el('div', 'command-palette-empty',
+            '当前行数：' + tab.model.getLineCount() + '，Enter 跳转，Esc 取消');
+        list.appendChild(hint);
+        palette.appendChild(input);
+        palette.appendChild(list);
+        backdrop.appendChild(palette);
+        document.body.appendChild(backdrop);
+
+        function jump() {
+            const line = parseInt(input.value, 10);
+            if (!line || line < 1) {
+                hint.textContent = '请输入有效的行号';
+                return;
+            }
+            closeGoToLine();
+            window.CodeEditor.revealPosition(tab.path, line, 1).catch(function (err) {
+                status('跳转失败：' + (err.message || String(err)), 'error');
+            });
+        }
+
+        input.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                jump();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                closeGoToLine();
+            }
+        });
+        backdrop.addEventListener('mousedown', function (event) {
+            if (event.target === backdrop) { closeGoToLine(); }
+        });
+
+        state.gotoLine = { close: closeGoToLine, backdrop: backdrop };
+        setTimeout(function () { input.focus(); }, 0);
+    }
+
+    // -----------------------------------------------------------------------
     // 事件绑定 / 启动
     // -----------------------------------------------------------------------
 
@@ -1285,6 +1361,9 @@
             } else if (ctrl && !event.shiftKey && key === 'p') {
                 event.preventDefault();
                 showQuickOpen();
+            } else if (ctrl && !event.shiftKey && key === 'g') {
+                event.preventDefault();
+                showGoToLine();
             } else if (event.altKey && !ctrl && key === 'c' && state.activeView === 'search') {
                 event.preventDefault();
                 toggleSearchOption('caseSensitive');
@@ -1324,6 +1403,7 @@
                 closeMenu();
                 closeCommandPalette();
                 closeQuickOpen();
+                closeGoToLine();
             }
         });
 
