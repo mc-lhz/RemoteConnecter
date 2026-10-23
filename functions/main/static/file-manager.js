@@ -7,26 +7,38 @@ function getFileList(filePath, callback) {
         callback(data);
     });
 }
-// 填充文件列表
+// 从完整路径取文件名（保留原始大小写；盘符根如 C:\ 显示为 C:）
+function baseNameOf(p) {
+    const parts = String(p || '').split(/[\\/]/).filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : String(p || '');
+}
+
+// 填充文件列表（仅显示文件名，当前文件夹路径显示在顶部路径栏）
 function putFileBox(filePath, fileJson, fileGrid) {
     if (fileJson && fileJson["fileList"]) {
         currentPathInfo = fileJson;
+        const pathBar = document.getElementById('current-path');
+        if (pathBar) {
+            pathBar.textContent = fileJson["currentPath"] || filePath || '/';
+            pathBar.title = pathBar.textContent;
+        }
         if (fileJson["fileList"].length > 0) {
             fileJson["fileList"].forEach(item => {
-                if (item["type"] == "folder") {
+                if (item["type"] == "folder" || item["type"] == "file") {
                     const fileBox = document.createElement('div');
                     fileBox.classList.add('file-box');
-                    fileBox.innerHTML = `<i class="file-icon">📁</i><div>${item["path"]}</div>`;
+                    fileBox.dataset.path = item["path"];
+                    fileBox.dataset.type = item["type"];
+                    fileBox.innerHTML = `<i class="file-icon">${item["type"] == 'folder' ? '📁' : '📄'}</i>`;
+                    const label = document.createElement('div');
+                    label.textContent = baseNameOf(item["path"]) || item["name"] || item["path"];
+                    fileBox.appendChild(label);
                     fileBox.addEventListener('click', function() {
-                        updateFileList(this.querySelector('div').textContent);
-                    });
-                    fileGrid.appendChild(fileBox);
-                } else if (item["type"] == "file") {
-                    const fileBox = document.createElement('div');
-                    fileBox.classList.add('file-box');
-                    fileBox.innerHTML = `<i class="file-icon">📄</i><div>${item["path"]}</div>`;
-                    fileBox.addEventListener('click', function() {
-                        window.open(`/download?path=${this.querySelector('div').textContent}`);
+                        if (this.dataset.type == 'folder') {
+                            updateFileList(this.dataset.path);
+                        } else {
+                            window.open(`/download?path=${encodeURIComponent(this.dataset.path)}`);
+                        }
                     });
                     fileGrid.appendChild(fileBox);
                 }
