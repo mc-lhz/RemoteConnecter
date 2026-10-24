@@ -14,6 +14,10 @@
     var ctxMenu = document.getElementById('ctx-menu');
     var modalRoot = document.getElementById('modal-root');
     var toastTimer = 0;
+    var marqueeState = { active: false, moved: false, additive: false, sx: 0, sy: 0, el: null, base: null };
+    var longPress = { timer: 0, node: null, sx: 0, sy: 0 };
+    var lastPointerWasTouch = false;
+    var suppressClickUntil = 0;
 
     function $(id) { return document.getElementById(id); }
 
@@ -122,9 +126,13 @@
                 textContent: item.name,
                 title: item.name + '\n' + (item.type === 'dir' ? '文件夹' : formatBytes(item.size))
             }));
-            cell.addEventListener('click', function (event) { onItemClick(event, item); });
+            cell.addEventListener('click', function (event) {
+                if (Date.now() < suppressClickUntil) { return; }
+                onItemClick(event, item);
+            });
             cell.addEventListener('contextmenu', function (event) {
                 event.preventDefault();
+                if (lastPointerWasTouch) { return; }
                 if (!state.selected.has(item.path)) {
                     state.selected.clear();
                     state.selected.set(item.path, item);
@@ -132,12 +140,126 @@
                 }
                 openContextMenu(event.clientX, event.clientY);
             });
-            cell.addEventListener('dblclick', function () { onItemOpen(item); });
+            cell.addEventListener('dblclick', function () {
+                if (Date.now() < suppressClickUntil) { return; }
+                onItemOpen(item);
+            });
+            cell.__item = item;
             grid.appendChild(cell);
         });
         pathInput.value = state.path;
         updateStatusbar();
     }
+
+    function startMarquee(event) {
+        marqueeState.active = true;
+        marqueeState.moved = false;
+        marqueeState.additive = event.ctrlKey || event.metaKey;
+        marqueeState.sx = event.clientX;
+        marqueeState.sy = event.clientY;
+        marqueeState.base = marqueeState.additive ? new Map(state.selected) : new Map();
+        var el = document.createElement('div');
+        el.className = 'marquee';
+        el.style.left = event.clientX + 'px';
+        el.style.top = event.clientY + 'px';
+        document.body.appendChild(el);
+        marqueeState.el = el;
+        document.body.classList.add('no-select');
+        if (!marqueeState.additive && state.selected.size > 0) {
+            state.selected.clear();
+            render();
+        }
+    }
+
+    function updateMarquee(event) {
+        if (!marqueeState.active) { return; }
+        var dx = event.clientX - marqueeState.sx;
+        var dy = event.clientY - marqueeState.sy;
+        if (!marqueeState.moved && Math.abs(dx) + Math.abs(dy) > 4) { marqueeState.moved = true; }
+        if (!marqueeState.moved) { return; }
+        var x1 = Math.min(event.clientX, marqueeState.sx);
+        var y1 = Math.min(event.clientY, marqueeState.sy);
+        var x2 = Math.max(event.clientX, marqueeState.sx);
+        var y2 = Math.max(event.clientY, marqueeState.sy);
+        var el = marqueeState.el;
+        el.style.left = x1 + 'px';
+        el.style.top = y1 + 'px';
+        el.style.width = (x2 - x1) + 'px';
+        el.style.height = (y2 - y1) + 'px';
+        var next = new Map(marqueeState.base);
+        var cells = grid.querySelectorAll('.item');
+        for (var i = 0; i < cells.length; i++) {
+            var rect = cells[i].getBoundingClientRect();
+            var hit = !(rect.right < x1 || rect.left > x2 || rect.bottom < y1 || rect.top > y2);
+            if (hit && cells[i].__item) { next.set(cells[i].__item.path, cells[i].__item); }
+        }
+        var changed = next.size !== state.selected.size;
+        if (!changed) {
+            next.forEach(function (value, key) { if (!state.selected.has(key)) { changed = true; } });
+        }
+        if (changed) {
+            state.selected = next;
+            render();
+        }
+    }
+
+    function endMarquee() {
+        if (!marqueeState.active) { return; }
+        marqueeState.active = false;
+        if (marqueeState.el && marqueeState.el.parentNode) {
+            marqueeState.el.parentNode.removeChild(marqueeState.el);
+        }
+        marqueeState.el = null;
+        document.body.classList.remove('no-select');
+        if (!marqueeState.moved && !marqueeState.additive && state.selected.size > 0) {
+            state.selected.clear();
+            render();
+        }
+    }
+
+    grid.addEventListener('mousedown', function (event) {
+        if (event.button !== 0) { return; }
+        if (event.target.closest('.item')) { return; }
+        event.preventDefault();
+        startMarquee(event);
+    });
+    window.addEventListener('mousemove', updateMarquee);
+    window.addEventListener('mouseup', endMarquee);
+
+    function cancelLongPress() {
+        if (longPress.timer) {
+            clearTimeout(longPress.timer);
+            longPress.timer = 0;
+        }
+        longPress.node = null;
+    }
+
+    grid.addEventListener('pointerdown', function (event) {
+        lastPointerWasTouch = event.pointerType === 'touch';
+        if (!lastPointerWasTouch) { return; }
+        var node = event.target.closest('.item');
+        if (!node) { return; }
+        longPress.sx = event.clientX;
+        longPress.sy = event.clientY;
+        longPress.node = node;
+        longPress.timer = setTimeout(function () {
+            longPress.timer = 0;
+            var bound = node.__item;
+            if (!bound) { return; }
+            if (state.selected.has(bound.path)) { state.selected.delete(bound.path); }
+            else { state.selected.set(bound.path, bound); }
+            suppressClickUntil = Date.now() + 700;
+            render();
+        }, 500);
+    });
+    grid.addEventListener('pointermove', function (event) {
+        if (!longPress.timer) { return; }
+        if (Math.abs(event.clientX - longPress.sx) + Math.abs(event.clientY - longPress.sy) > 8) {
+            cancelLongPress();
+        }
+    });
+    grid.addEventListener('pointerup', cancelLongPress);
+    grid.addEventListener('pointercancel', cancelLongPress);
 
     function onItemClick(event, item) {
         if (event.ctrlKey || event.metaKey) {

@@ -224,6 +224,31 @@ button, input {
     font-size: 13px;
 }
 
+.marquee {
+    position: fixed;
+    z-index: 45;
+    border: 1px solid #1f6feb;
+    background: rgba(31, 111, 235, .12);
+    pointer-events: none;
+}
+
+body.no-select,
+body.no-select * {
+    user-select: none !important;
+}
+
+.hint-inline {
+    color: #8a919c;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+    .hint-inline {
+        display: none;
+    }
+}
+
 .batch-actions {
     display: flex;
     gap: 6px;
