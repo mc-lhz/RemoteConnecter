@@ -29,6 +29,22 @@ setInterval(function() {
 streamImg.onerror = function() {
     console.log('流连接中断，尝试重新连接...');
     setTimeout(function() {
-        streamImg.src = streamUrl + '?t=' + Date.now();
+        if (!document.hidden) {
+            streamImg.src = streamUrl + '?t=' + Date.now();
+        }
     }, 1000);
 };
+
+// 页面隐藏时断开流（服务端生成器随连接关闭终止，停止抓屏编码），
+// 回到前台重连——公网/后台标签页不再白白消耗带宽。
+// 注意不能 src=''：空串会按标准解析成当前页面 URL（把 HTML 当图片
+// 触发 onerror），removeAttribute 才是干净的断流
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        streamImg.removeAttribute('src');
+        console.log('页面已隐藏，暂停屏幕流');
+    } else {
+        streamImg.src = streamUrl + '?t=' + Date.now();
+        console.log('页面回到前台，恢复屏幕流');
+    }
+});

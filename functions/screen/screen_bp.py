@@ -5,7 +5,7 @@ import io
 import time
 
 from flask import Blueprint, Response, render_template, request
-from PIL import ImageGrab
+from PIL import Image, ImageGrab
 from pynput.keyboard import Controller as KeyboardController, Key
 from pynput.mouse import Button
 from pynput.mouse import Controller as MouseController
@@ -74,15 +74,85 @@ def screenshotPage():
     return render_template('screenshot.html')
 
 
+# ---- 自适应流：档位表与决策（纯函数，便于确定性测试）----
+# 公网瓶颈在客户端下行/服务端上行：客户端消费不动时 socket 缓冲填满，
+# 生成器的下一帧 yield 会被 werkzeug 写阻塞——帧起点间隔因此拉长。
+# 用帧间隔的 EMA 超出预算的部分（lag）判断拥塞：慢则快降档（画质/
+# 缩小分辨率），持续畅通则慢升档。迟滞防振荡：降档阈值低、升档阈值高。
+STREAM_LEVELS = [
+    # (quality, scale)  level 0 = 全速原画质
+    (80, 1.00),
+    (65, 0.85),
+    (55, 0.70),
+    (45, 0.55),
+    (35, 0.45),
+    (30, 0.35),
+]
+STREAM_RAISE_FRAMES = 60      # 连续畅通 60 帧（约 6s@10fps）才升一档
+STREAM_DROP_LAG_RATIO = 0.5   # EMA lag 超过预算 50% 即降档
+STREAM_RAISE_LAG = 0.0        # EMA lag ≤ 0 视为畅通
+STREAM_EMA_ALPHA = 0.1
+
+
+def streamDecide(level, emaLag, budget, fastStreak):
+    """根据平滑滞后调整档位。返回 (newLevel, newFastStreak)。"""
+    if emaLag > budget * STREAM_DROP_LAG_RATIO and level < len(STREAM_LEVELS) - 1:
+        return level + 1, 0
+    if emaLag <= STREAM_RAISE_LAG and level > 0:
+        fastStreak += 1
+        if fastStreak >= STREAM_RAISE_FRAMES:
+            return level - 1, 0
+        return level, fastStreak
+    return level, 0 if emaLag > STREAM_RAISE_LAG else fastStreak
+
+
+def _floatArg(name, default, low, high):
+    try:
+        value = float(request.args.get(name, default))
+    except (TypeError, ValueError):
+        return default
+    return max(low, min(high, value))
+
+
 @screen_bp.route('/screenshot/api/stream')
 def screenshotStream():
-    """MJPEG 实时屏幕流 (约 10 FPS)"""
+    """MJPEG 实时屏幕流。
+
+    参数: scale(0.1~1 缩放) quality(10~95) fps(1~30 上限) auto(0/1 自适应, 默认开)
+    自适应依据客户端消费速度自动降/升画质档，公网慢链路自动让出带宽。
+    """
+    scale = _floatArg('scale', 1.0, 0.1, 1.0)
+    quality = int(_floatArg('quality', 80, 10, 95))
+    fps = _floatArg('fps', 10, 1, 30)
+    auto = request.args.get('auto', '1') != '0'
+    budget = 1.0 / fps
 
     def generateFrames():
+        level = 0
+        emaLag = 0.0
+        fastStreak = 0
+        lastFrameStart = time.time()
         while True:
+            frameStart = time.time()
+            interval = frameStart - lastFrameStart
+            lastFrameStart = frameStart
+            emaLag = (1 - STREAM_EMA_ALPHA) * emaLag + STREAM_EMA_ALPHA * (interval - budget)
+            if auto:
+                level, fastStreak = streamDecide(level, emaLag, budget, fastStreak)
+                frameQuality, frameScale = STREAM_LEVELS[level]
+                frameQuality = min(quality, frameQuality)
+                frameScale = min(scale, frameScale)
+            else:
+                frameQuality, frameScale = quality, scale
+
             screenshot = ImageGrab.grab()
+            if frameScale < 0.999:
+                screenshot = screenshot.resize(
+                    (max(1, int(screenshot.width * frameScale)),
+                     max(1, int(screenshot.height * frameScale))),
+                    Image.BILINEAR)
             imgIo = io.BytesIO()
-            screenshot.save(imgIo, 'JPEG', quality=80)
+            screenshot.save(imgIo, 'JPEG', quality=frameQuality)
             frameData = imgIo.getvalue()
 
             yield (b'--frame\r\n'
@@ -91,7 +161,10 @@ def screenshotStream():
             yield frameData
             yield b'\r\n'
 
-            time.sleep(0.05)
+            elapsed = time.time() - frameStart
+            if elapsed < budget:
+                time.sleep(budget - elapsed)
+            # 编码超预算时不 sleep，直接赶下一帧（lag 信号会让自适应降档）
 
     return Response(generateFrames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
