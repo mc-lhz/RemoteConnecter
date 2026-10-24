@@ -680,6 +680,24 @@
         render();
     });
 
+    // ---- 键盘快捷键 (桌面惯例: Ctrl+A 全选 / Delete 删除 / F2 重命名 / Enter 打开) ----
+    document.addEventListener('keydown', function (event) {
+        var tag = ((event.target && event.target.tagName) || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') { return; }
+        if (!modalRoot.hidden) { return; }
+        if ((event.ctrlKey || event.metaKey) && (event.key === 'a' || event.key === 'A')) {
+            event.preventDefault();
+            viewItems().forEach(function (item) { state.selected.set(item.path, item); });
+            render();
+        } else if (event.key === 'Delete') {
+            if (state.selected.size > 0) { event.preventDefault(); deleteSelection(); }
+        } else if (event.key === 'F2') {
+            if (state.selected.size === 1) { event.preventDefault(); renameItem(); }
+        } else if (event.key === 'Enter') {
+            if (state.selected.size === 1) { event.preventDefault(); onItemOpen(singleItem()); }
+        }
+    });
+
     $('btn-ai').addEventListener('click', askAi);
 
     $('show-hidden').addEventListener('change', function () {

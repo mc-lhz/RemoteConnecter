@@ -156,6 +156,8 @@
             document.querySelectorAll('.pane').forEach(function (p) { p.classList.remove('active'); });
             tab.classList.add('active');
             currentTab = tab.getAttribute('data-tab');
+            $('proc-search').placeholder = currentTab === 'apps' ? '搜索应用...'
+                : currentTab === 'windows' ? '搜索窗口...' : '搜索进程...';
             $('pane-' + currentTab).classList.add('active');
             refreshTab();
         });
@@ -164,7 +166,7 @@
     var procQuery = '';
     $('proc-search').addEventListener('input', function () {
         procQuery = this.value.trim().toLowerCase();
-        if (currentTab === 'processes') { refreshTab(); }
+        refreshTab();
     });
     $('proc-search').addEventListener('keydown', function (event) {
         if (event.key === 'Enter') { refreshTab(); }
@@ -295,10 +297,17 @@
                 renderProcesses(data.items || []);
             } else if (currentTab === 'windows') {
                 var data2 = await api('/monitor/api/windows');
-                renderWindows(data2.items || []);
+                var winItems = (data2.items || []).filter(function (it) {
+                    return !procQuery || (it.title || '').toLowerCase().indexOf(procQuery) >= 0
+                        || (it.exe || '').toLowerCase().indexOf(procQuery) >= 0;
+                });
+                renderWindows(winItems);
             } else {
                 var data3 = await api('/monitor/api/apps');
-                renderApps(data3.items || []);
+                var appItems = (data3.items || []).filter(function (it) {
+                    return !procQuery || (it.name || '').toLowerCase().indexOf(procQuery) >= 0;
+                });
+                renderApps(appItems);
             }
         } catch (err) {
             toast('加载失败: ' + err.message);
