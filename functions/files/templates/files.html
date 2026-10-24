@@ -24,6 +24,14 @@
                 <button id="btn-upload" class="tool-btn primary">⬆ 本地上传</button>
                 <input id="file-input" type="file" multiple hidden>
                 <button id="btn-ai" class="tool-btn">✦ 问 AI</button>
+                <select id="sort-select" class="tool-select" title="排序方式">
+                    <option value="name">名称 A→Z</option>
+                    <option value="nameDesc">名称 Z→A</option>
+                    <option value="time">修改时间 新→旧</option>
+                    <option value="timeAsc">修改时间 旧→新</option>
+                    <option value="size">大小 大→小</option>
+                    <option value="sizeAsc">大小 小→大</option>
+                </select>
                 <label class="hidden-toggle"><input type="checkbox" id="show-hidden"> 显示隐藏项</label>
                 <span class="hint-inline">批量操作：框选 / 长按选中 → 右键或底部操作栏</span>
                 <input id="filter-input" type="text" placeholder="搜索当前目录...">
@@ -53,6 +61,7 @@
 
     <div id="ctx-menu" class="ctx-menu" hidden></div>
     <div id="modal-root" class="modal-root" hidden></div>
+    <div id="drop-overlay" class="drop-overlay" hidden><div class="drop-card">松开鼠标，上传到当前目录</div></div>
     <div id="toast" class="toast" hidden></div>
 
     <script src="/files/static/files.js"></script>

@@ -224,6 +224,37 @@ button, input {
     font-size: 13px;
 }
 
+.tool-select {
+    height: 34px;
+    padding: 0 8px;
+    border: 1px solid #d9dde5;
+    border-radius: 8px;
+    background: #fff;
+    color: #1f2329;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.drop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(31, 111, 235, .10);
+    pointer-events: none;
+}
+
+.drop-card {
+    padding: 14px 26px;
+    border: 2px dashed #1f6feb;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .95);
+    color: #1f6feb;
+    font-size: 15px;
+}
+
 .marquee {
     position: fixed;
     z-index: 45;

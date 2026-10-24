@@ -7,7 +7,8 @@
         items: [],
         selected: new Map(),
         showHidden: false,
-        filter: ''
+        filter: '',
+        sort: 'name'
     };
     var grid = document.getElementById('grid');
     var pathInput = document.getElementById('path-input');
@@ -73,6 +74,22 @@
         });
     }
 
+    function viewItems() {
+        var items = visibleItems().slice();
+        var sort = state.sort || 'name';
+        function lower(item) { return (item.name || '').toLowerCase(); }
+        items.sort(function (a, b) {
+            if ((a.type === 'dir') !== (b.type === 'dir')) { return a.type === 'dir' ? -1 : 1; }
+            if (sort === 'nameDesc') { return lower(a) > lower(b) ? -1 : lower(a) < lower(b) ? 1 : 0; }
+            if (sort === 'time') { return (b.mtime || 0) - (a.mtime || 0); }
+            if (sort === 'timeAsc') { return (a.mtime || 0) - (b.mtime || 0); }
+            if (sort === 'size') { return (b.size || 0) - (a.size || 0); }
+            if (sort === 'sizeAsc') { return (a.size || 0) - (b.size || 0); }
+            return lower(a) < lower(b) ? -1 : lower(a) > lower(b) ? 1 : 0;
+        });
+        return items;
+    }
+
     function selectedPaths() {
         return Array.from(state.selected.values()).map(function (item) { return item.path; });
     }
@@ -97,7 +114,7 @@
     }
 
     function render() {
-        var items = visibleItems();
+        var items = viewItems();
         grid.textContent = '';
         $('empty').hidden = items.length > 0;
         items.forEach(function (item) {
@@ -266,7 +283,7 @@
             if (state.selected.has(item.path)) { state.selected.delete(item.path); }
             else { state.selected.set(item.path, item); }
         } else if (event.shiftKey && state.selected.size > 0) {
-            var items = visibleItems();
+            var items = viewItems();
             var lastPath = Array.from(state.selected.keys()).pop();
             var startIdx = items.findIndex(function (x) { return x.path === lastPath; });
             var endIdx = items.findIndex(function (x) { return x.path === item.path; });
@@ -605,8 +622,8 @@
         $('file-input').click();
     });
 
-    $('file-input').addEventListener('change', async function () {
-        var files = Array.from(this.files || []);
+    async function uploadLocalFiles(files) {
+        files = Array.from(files || []);
         if (!files.length) { return; }
         var form = new FormData();
         form.append('path', state.path);
@@ -618,6 +635,49 @@
                 : '已上传 ' + data.saved.length + ' 个文件');
             navigate(state.path);
         } catch (err) { toast('上传失败: ' + err.message); }
+    }
+
+    $('file-input').addEventListener('change', function () {
+        uploadLocalFiles(this.files);
+    });
+
+    // ---- 拖拽上传 (桌面拖文件进窗口) ----
+    var dropOverlay = $('drop-overlay');
+    var dragDepth = 0;
+
+    function dragHasFiles(event) {
+        if (!event.dataTransfer) { return false; }
+        var types = Array.from(event.dataTransfer.types || []);
+        return types.indexOf('Files') >= 0;
+    }
+
+    window.addEventListener('dragenter', function (event) {
+        if (!dragHasFiles(event)) { return; }
+        event.preventDefault();
+        dragDepth += 1;
+        if (dropOverlay) { dropOverlay.hidden = false; }
+    });
+    window.addEventListener('dragover', function (event) {
+        if (!dragHasFiles(event)) { return; }
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+    });
+    window.addEventListener('dragleave', function () {
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (dragDepth === 0 && dropOverlay) { dropOverlay.hidden = true; }
+    });
+    window.addEventListener('drop', function (event) {
+        if (!dragHasFiles(event)) { return; }
+        event.preventDefault();
+        dragDepth = 0;
+        if (dropOverlay) { dropOverlay.hidden = true; }
+        uploadLocalFiles(event.dataTransfer.files);
+    });
+
+    $('sort-select').addEventListener('change', function () {
+        state.sort = this.value;
+        try { localStorage.setItem('rc-files-sort', state.sort); } catch (e) { /* ignore */ }
+        render();
     });
 
     $('btn-ai').addEventListener('click', askAi);
@@ -692,6 +752,12 @@
     });
 
     (async function init() {
+        try {
+            var savedSort = localStorage.getItem('rc-files-sort');
+            if (savedSort) { state.sort = savedSort; }
+        } catch (e) { /* ignore */ }
+        var sortSelect = $('sort-select');
+        if (sortSelect) { sortSelect.value = state.sort; }
         var drives = await api('/files/api/drives');
         buildDrives(drives.drives || []);
         var quick = await api('/files/api/quick');
