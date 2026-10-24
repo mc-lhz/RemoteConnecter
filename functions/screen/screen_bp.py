@@ -4,8 +4,8 @@
 import io
 import time
 
-from flask import Blueprint, Response, render_template, request
-from PIL import ImageGrab
+from flask import Blueprint, Response, jsonify, render_template, request
+from PIL import ImageChops, ImageGrab
 from pynput.keyboard import Controller as KeyboardController, Key
 from pynput.mouse import Button
 from pynput.mouse import Controller as MouseController
@@ -74,24 +74,60 @@ def screenshotPage():
     return render_template('screenshot.html')
 
 
+@screen_bp.route('/screenshot/api/size')
+def screenshotSize():
+    """真实屏幕分辨率 (点击映射使用; 流可能按 scale 缩放, naturalWidth 不可靠)"""
+    shot = ImageGrab.grab()
+    return jsonify({'width': shot.width, 'height': shot.height})
+
+
+def _streamParam(name, default, low, high, cast=float):
+    try:
+        value = cast(request.args.get(name, default))
+    except (TypeError, ValueError):
+        value = default
+    return max(low, min(high, value))
+
+
 @screen_bp.route('/screenshot/api/stream')
 def screenshotStream():
-    """MJPEG 实时屏幕流 (约 10 FPS)"""
+    """MJPEG 实时屏幕流。
+
+    参数: fps(1-20, 默认10) / quality(30-95, 默认80) / scale(0.25-1, 默认1)。
+    静止帧跳过: 画面无变化时不编码不发送 (最长 2s 补发一帧保连接), 大幅省带宽与 CPU。
+    """
+    fps = _streamParam('fps', 10, 1, 20)
+    quality = _streamParam('quality', 80, 30, 95, int)
+    scale = _streamParam('scale', 1.0, 0.25, 1.0)
+    interval = 1.0 / fps
+    keepAliveSeconds = 2.0
 
     def generateFrames():
+        prevThumb = None
+        lastSent = 0.0
         while True:
+            started = time.time()
             screenshot = ImageGrab.grab()
-            imgIo = io.BytesIO()
-            screenshot.save(imgIo, 'JPEG', quality=80)
-            frameData = imgIo.getvalue()
-
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n'
-                   b'Content-Length: %d\r\n\r\n' % len(frameData))
-            yield frameData
-            yield b'\r\n'
-
-            time.sleep(0.05)
+            if scale < 1.0:
+                screenshot = screenshot.resize(
+                    (max(1, int(screenshot.width * scale)), max(1, int(screenshot.height * scale))))
+            thumb = screenshot.convert('L').resize((160, 90))
+            changed = prevThumb is None or ImageChops.difference(prevThumb, thumb).getbbox() is not None
+            now = time.time()
+            if changed or (now - lastSent) > keepAliveSeconds:
+                imgIo = io.BytesIO()
+                screenshot.save(imgIo, 'JPEG', quality=quality)
+                frameData = imgIo.getvalue()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n'
+                       b'Content-Length: %d\r\n\r\n' % len(frameData))
+                yield frameData
+                yield b'\r\n'
+                prevThumb = thumb
+                lastSent = now
+            elapsed = time.time() - started
+            if elapsed < interval:
+                time.sleep(interval - elapsed)
 
     return Response(generateFrames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 

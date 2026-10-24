@@ -1,12 +1,25 @@
-// 缓存首帧的屏幕分辨率（MJPEG naturalWidth 在流更新时可能不可靠）
+// 缓存首帧的屏幕分辨率（MJPEG naturalWidth 在流更新时可能不可靠；
+// 画质预设可能按 scale 缩放画面，点击映射必须用真实屏幕分辨率）
 var screenW = 0, screenH = 0;
 
-// 定期检查并缓存分辨率
+// 优先从服务端获取真实分辨率（缩放后 naturalWidth 只是缩放后尺寸）
+fetch('/screenshot/api/size')
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+        if (data && data.width > 0 && data.height > 0 && !screenW) {
+            screenW = data.width;
+            screenH = data.height;
+            console.log('屏幕分辨率(服务端): ' + screenW + 'x' + screenH);
+        }
+    })
+    .catch(function () { /* 拉取失败回退 naturalWidth */ });
+
+// 定期检查并缓存分辨率（回退路径）
 function checkResolution() {
     if (streamImg.naturalWidth > 0 && !screenW) {
         screenW = streamImg.naturalWidth;
         screenH = streamImg.naturalHeight;
-        console.log('屏幕分辨率: ' + screenW + 'x' + screenH);
+        console.log('屏幕分辨率(流回退): ' + screenW + 'x' + screenH);
     }
 }
 setInterval(checkResolution, 500);
