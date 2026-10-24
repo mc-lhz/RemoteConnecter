@@ -72,6 +72,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const action = this.querySelector('span').textContent;
                 if (action === '实时屏幕') {
                     window.location.href = '/screenshot';
+                } else if (action === '系统面板 (beta)') {
+                    window.open('/monitor', '_blank');
+                } else if (action === '文件管理(beta)') {
+                    window.open('/files', '_blank');
                 }
             });
         });
