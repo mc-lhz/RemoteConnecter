@@ -38,14 +38,50 @@
         return m + ' 分';
     }
 
+    var history = { cpu: [], mem: [] };
+    var HISTORY_MAX = 60;
+
+    function drawSparkline(canvas, points, color) {
+        var ctx = canvas.getContext('2d');
+        var w = canvas.width;
+        var h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        if (points.length < 2) { return; }
+        var stepX = w / (HISTORY_MAX - 1);
+        ctx.beginPath();
+        points.forEach(function (value, index) {
+            var x = index * stepX;
+            var y = h - (Math.max(0, Math.min(100, value)) / 100) * (h - 2) - 1;
+            if (index === 0) { ctx.moveTo(x, y); } else { ctx.lineTo(x, y); }
+        });
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.lineTo((points.length - 1) * stepX, h);
+        ctx.lineTo(0, h);
+        ctx.closePath();
+        ctx.fillStyle = color.replace('rgb', 'rgba').replace(')', ', 0.14)');
+        ctx.fill();
+    }
+
+    function pushHistory(key, value, canvasId, color) {
+        var list = history[key];
+        list.push(Number(value) || 0);
+        if (list.length > HISTORY_MAX) { list.shift(); }
+        var canvas = $(canvasId);
+        if (canvas) { drawSparkline(canvas, list, color); }
+    }
+
     async function refreshStats() {
         try {
             var data = await api('/monitor/api/stats');
             $('st-host').textContent = data.host || '--';
             $('st-uptime').textContent = formatUptime(data.uptimeSeconds || 0);
             $('st-cpu').textContent = (data.cpuPercent || 0) + '%';
+            pushHistory('cpu', data.cpuPercent, 'cpu-chart', 'rgb(31, 111, 235)');
             var mem = data.memory || {};
             $('st-mem').textContent = mem.percent + '% 可用 ' + formatBytes(mem.free || 0);
+            pushHistory('mem', mem.percent, 'mem-chart', 'rgb(15, 157, 88)');
             var diskMap = {};
             (data.disks || []).forEach(function (d) {
                 diskMap[d.drive.charAt(0).toUpperCase()] = d;

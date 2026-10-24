@@ -46,6 +46,13 @@ button {
     font-size: 12px;
 }
 
+.spark {
+    display: block;
+    margin-top: 4px;
+    width: 120px;
+    height: 26px;
+}
+
 .stat-value {
     font-size: 14px;
     font-weight: 600;
