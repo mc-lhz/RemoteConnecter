@@ -44,5 +44,15 @@ for /d %%p in (functions\*) do (
 set "dataArgs=!dataArgs! --add-data plugins;plugins"
 
 echo Building...
-.\python39\python.exe -m PyInstaller -F --noconfirm !consoleArgs! --upx-dir upx --hidden-import hosts.blueprintHost --hidden-import hosts.pluginHost !modArgs! !dataArgs! --add-binary bin\ffmpeg.exe;bin --collect-all winpty RemoteConnecter.py
+:: proxy plugin private deps (bs4/soupsieve) live in plugins\proxy\lib and are
+:: loaded at runtime via spec_from_file_location, which PyInstaller static
+:: analysis cannot see. Add that lib dir to the search path and force-collect
+:: bs4 + soupsieve + charset_normalizer as real modules so the frozen
+:: importer can resolve them. bs4's html.parser builder lazily imports the
+:: stdlib html.parser/html.entities/_markupbase (triggered by string name at
+:: runtime), so PyInstaller's static scan misses them too -> force-collect
+:: the whole html package and _markupbase.
+set "pluginLibArgs= --paths plugins\proxy\lib --collect-all bs4 --collect-all soupsieve --collect-all charset_normalizer --collect-submodules html --hidden-import _markupbase"
+
+.\python39\python.exe -m PyInstaller -F --noconfirm !consoleArgs! --upx-dir upx !pluginLibArgs! --hidden-import hosts.blueprintHost --hidden-import hosts.pluginHost !modArgs! !dataArgs! --add-binary bin\ffmpeg.exe;bin --collect-all winpty RemoteConnecter.py
 echo Done: dist\RemoteConnecter.exe

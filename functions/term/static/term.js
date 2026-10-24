@@ -1,5 +1,5 @@
-// 远程终端前端: 多会话 + 侧边栏 + 断线重连 + 心跳保活
-// 每会话一个 xterm 实例; 仅前台会话持有 WebSocket, 后台会话切换时断开 WS (服务端保活, 进程不杀)。
+// 远程终端前端: multi=多会话 + 侧边栏 + 断线重连 + 心跳保活; single=Code 页内嵌单会话
+// 每会话一个 xterm 实例; multi 模式仅前台会话持有 WebSocket, 后台会话切换时断开 WS (服务端保活, 进程不杀)。
 
 // 常量
 const PING_INTERVAL = 15000;    // 心跳间隔(ms), 保 NAT/中间设备链路
@@ -7,15 +7,29 @@ const RECONNECT_BASE = 1000;    // 重连退避基数(ms)
 const RECONNECT_MAX = 30000;    // 重连退避封顶(ms)
 const KEYS_PREF_KEY = 'showControlKeys';
 const SIDEBAR_PREF_KEY = 'sidebarOpen';
+
+// 嵌入配置: 普通 /terminal 页面不传, 保持 multi 全功能
+const RC_CONFIG = Object.assign({
+    embedded: false,
+    mode: 'multi',
+    terminalId: 'terminal',
+    statusId: 'status',
+    cwd: ''
+}, window.RC_TERM_CONFIG || {});
+const EMBEDDED = !!RC_CONFIG.embedded;
+const TERM_MODE = RC_CONFIG.mode === 'single' ? 'single' : 'multi';
+
+// 文件管理器「在终端中打开」: URL ?cwd= 作为新会话初始目录
 const URL_CWD = new URLSearchParams(location.search).get('cwd') || '';
+if (URL_CWD && !RC_CONFIG.cwd) { RC_CONFIG.cwd = URL_CWD; }
 
 // 会话状态
 let sessions = [];              // 全部会话
 let activeSession = null;       // 当前前台会话 (仅此会话持有 ws)
 let uidCounter = 0;
 
-// DOM 引用
-const statusEl = document.getElementById('status');
+// DOM 引用 (Code 页只提供 terminal/status, 其余为 null)
+const statusEl = document.getElementById(RC_CONFIG.statusId || 'status');
 const btn = document.getElementById('connect');
 const controlKeys = document.getElementById('control-keys');
 const sidebar = document.getElementById('sidebar');
@@ -23,8 +37,13 @@ const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebarOverlay = document.getElementById('sidebar-overlay');
 
 function setStatus(text, cls) {
-    statusEl.textContent = text;
-    statusEl.className = cls || '';
+    if (statusEl) {
+        statusEl.textContent = text;
+        statusEl.className = cls || '';
+    }
+    if (EMBEDDED && window.CodeUI && window.CodeUI.status) {
+        window.CodeUI.status(text, cls === 'err' ? 'error' : (cls === 'ok' ? 'ok' : ''));
+    }
 }
 
 function escapeHtml(s) {
@@ -52,7 +71,8 @@ function stateText(s) {
 // 供 createSession (新建) 与 restoreSessions (刷新恢复) 复用
 function buildSessionUI(cmd, existingSessionID) {
     const command = (cmd || '').trim() || 'cmd.exe';
-    const termHost = document.getElementById('terminal');
+    const termHost = document.getElementById(RC_CONFIG.terminalId || 'terminal');
+    if (!termHost) { return null; }
     const container = document.createElement('div');
     container.className = 'session-terminal';
     termHost.appendChild(container);
@@ -76,6 +96,7 @@ function buildSessionUI(cmd, existingSessionID) {
         uid: 's' + (++uidCounter),
         sessionID: existingSessionID || null,   // 服务端会话 id; 恢复时预填, 否则 hello 帧后填入
         cmd: command,
+        cwd: RC_CONFIG.cwd || '',
         term: term,
         fit: fit,
         el: container,
@@ -102,9 +123,15 @@ function buildSessionUI(cmd, existingSessionID) {
 
 // 新建终端会话: 建 UI -> 入列 -> 切前台
 function createSession(cmd) {
+    // single: 始终只保留一个会话, 重复调用等价于重建
+    if (TERM_MODE === 'single' && sessions.length) {
+        closeSession(sessions[0]);
+    }
     const session = buildSessionUI(cmd);
+    if (!session) { return null; }
     sessions.push(session);
     switchSession(session);
+    return session;
 }
 
 function createSessionFromInput() {
@@ -169,7 +196,8 @@ function closeSession(session) {
 // 页面加载时拉取服务端存活会话列表, 重建终端列表并重连恢复
 // (断线重连由 onclose 处理; 此处专门处理整页刷新: 前端 sessions 清空, 需向服务端重新询问)
 function restoreSessions() {
-    fetch('/terminal/api/sessions')
+    if (TERM_MODE === 'single' || EMBEDDED) { return; }
+    return fetch('/terminal/api/sessions')
         .then(function (res) { return res.json(); })
         .then(function (data) {
             const items = (data && data.sessions) || [];
@@ -204,10 +232,11 @@ function connectWs(session) {
     if (session.ws && session.ws.readyState <= 2) { return; }
     clearTimers(session);
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    let url = proto + '://' + location.host + '/terminal/api/ws?cmd=' + encodeURIComponent(session.cmd);
-    if (session.sessionID) { url += '&session=' + encodeURIComponent(session.sessionID); }
-    if (session.needReplay) { url += '&replay=1'; }
-    if (URL_CWD && !session.sessionID) { url += '&cwd=' + encodeURIComponent(URL_CWD); }
+    let url = proto + '://' + location.host + '/terminal/api/ws?cmd=' + encodeURIComponent(session.cmd)
+        + '&mode=' + encodeURIComponent(TERM_MODE);
+    if (session.cwd) { url += '&cwd=' + encodeURIComponent(session.cwd); }
+    if (TERM_MODE === 'multi' && session.sessionID) { url += '&session=' + encodeURIComponent(session.sessionID); }
+    if (TERM_MODE === 'multi' && session.needReplay) { url += '&replay=1'; }
     if (session.state !== 'reconnecting') { session.state = 'connecting'; }
     setStatus(session.state === 'reconnecting' ? '重连中: ' + session.cmd : '连接中: ' + session.cmd);
 
@@ -244,7 +273,14 @@ function connectWs(session) {
             return;
         }
         if (session.manualClose) {
-            // 主动断开 (切换/关闭): 服务端保活, 不重连
+            // 主动断开 (切换/关闭): multi 服务端保活, 不重连
+            renderSidebar();
+            return;
+        }
+        if (TERM_MODE === 'single') {
+            // single: 连接结束即会话结束, 由 Code 页在需要时重建
+            session.state = 'ended';
+            setStatus('终端已断开 (code ' + e.code + ')', 'err');
             renderSidebar();
             return;
         }
@@ -293,8 +329,8 @@ function handleControl(session, socket, obj) {
 }
 
 function scheduleReconnect(session) {
-    // 仅前台会话重连 (后台会话无 ws, 切回时由 switchSession->connectWs 自然恢复)
-    if (session !== activeSession) { return; }
+    // single 不自动重连; 仅前台 multi 会话重连
+    if (TERM_MODE === 'single' || session !== activeSession) { return; }
     session.retryCount += 1;
     session.state = 'reconnecting';
     const delay = Math.min(RECONNECT_BASE * Math.pow(2, session.retryCount - 1), RECONNECT_MAX);
@@ -356,59 +392,133 @@ function renderSidebar() {
 // 全局事件绑定
 // ---------------------------------------------------------------------------
 
+function fitActive() {
+    if (!activeSession || !activeSession.el || activeSession.el.hidden) { return; }
+    if (!activeSession.el.clientWidth || !activeSession.el.clientHeight) { return; }
+    try { activeSession.fit.fit(); } catch (err) { /* ignore */ }
+}
+
 // "新建" 按钮 (恒定新建语义, 读输入框)
-btn.addEventListener('click', function () {
-    createSessionFromInput();
-});
+if (btn) {
+    btn.addEventListener('click', function () {
+        createSessionFromInput();
+    });
+}
 
 // 回车直接新建
-document.getElementById('cmd').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') { createSessionFromInput(); }
-});
+const cmdInput = document.getElementById('cmd');
+if (cmdInput) {
+    cmdInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { createSessionFromInput(); }
+    });
+}
 
 // 侧边栏展开/收起: 覆盖层模式, 同步遮罩层状态并记忆偏好 (localStorage)
 function setSidebarOpen(open) {
+    if (!sidebar || !sidebarOverlay) { return; }
     sidebar.classList.toggle('open', open);
     sidebarOverlay.classList.toggle('open', open);
     localStorage.setItem(SIDEBAR_PREF_KEY, open ? '1' : '0');
 }
-if (localStorage.getItem(SIDEBAR_PREF_KEY) === '1') {
+if (sidebar && localStorage.getItem(SIDEBAR_PREF_KEY) === '1') {
     setSidebarOpen(true);
 }
-sidebarToggle.addEventListener('click', function () {
-    setSidebarOpen(!sidebar.classList.contains('open'));
-});
+if (sidebarToggle && sidebar) {
+    sidebarToggle.addEventListener('click', function () {
+        setSidebarOpen(!sidebar.classList.contains('open'));
+    });
+}
 // 点击遮罩层收起侧边栏
-sidebarOverlay.addEventListener('click', function () {
-    setSidebarOpen(false);
-});
+if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', function () {
+        setSidebarOpen(false);
+    });
+}
 
 // 单击状态文字 → 切换控制键区显示/隐藏 (标记挂在 #control-keys 上, 避免被 setStatus 重写 className 清掉)
-if (localStorage.getItem(KEYS_PREF_KEY) === '0') {
+if (controlKeys && localStorage.getItem(KEYS_PREF_KEY) === '0') {
     controlKeys.classList.add('hidden');
 }
-statusEl.addEventListener('click', function () {
-    controlKeys.classList.toggle('hidden');
-    localStorage.setItem(KEYS_PREF_KEY, controlKeys.classList.contains('hidden') ? '0' : '1');
-    // 控制键占高度, 显隐后重算前台终端尺寸
-    if (activeSession) {
-        try { activeSession.fit.fit(); } catch (err) { /* ignore */ }
+if (statusEl && controlKeys) {
+    statusEl.addEventListener('click', function () {
+        controlKeys.classList.toggle('hidden');
+        localStorage.setItem(KEYS_PREF_KEY, controlKeys.classList.contains('hidden') ? '0' : '1');
+        // 控制键占高度, 显隐后重算前台终端尺寸
+        fitActive();
         sendResize();
-    }
-});
+    });
+}
 
 // 窗口变化 → 前台 fit 重算 → onResize 自动发 resize 帧
 window.addEventListener('resize', function () {
-    if (activeSession) {
-        try { activeSession.fit.fit(); } catch (err) { /* ignore */ }
-        sendResize();
-    }
+    fitActive();
+    sendResize();
 });
 
-// 页面加载 → 恢复服务端仍存活的会话 (刷新不丢终端)
+// 面板显隐/缩放 → 重新 fit (Code 页折叠/展开终端时尤其需要)
+if (typeof ResizeObserver !== 'undefined') {
+    const termHost = document.getElementById(RC_CONFIG.terminalId || 'terminal');
+    if (termHost) {
+        const resizeObserver = new ResizeObserver(function () {
+            fitActive();
+            sendResize();
+        });
+        resizeObserver.observe(termHost);
+    }
+}
+
+// Code 页可调用的稳定接口
+window.rcTerm = {
+    createSession: function (cmd) {
+        return createSession(cmd || 'powershell.exe');
+    },
+    closeActive: function () {
+        if (activeSession) { closeSession(activeSession); }
+    },
+    sendCommand: function (command) {
+        if (!activeSession || !activeSession.ws || activeSession.ws.readyState !== 1) {
+            return false;
+        }
+        activeSession.ws.send(String(command) + '\r');
+        return true;
+    },
+    fit: function () {
+        fitActive();
+        sendResize();
+    },
+    focus: function () {
+        if (activeSession && activeSession.term) {
+            try { activeSession.term.focus(); } catch (err) { /* ignore */ }
+        }
+    },
+    isReady: function () {
+        return !!(activeSession && activeSession.state === 'connected'
+            && activeSession.ws && activeSession.ws.readyState === 1);
+    },
+    waitReady: function (timeout) {
+        const deadline = Date.now() + (timeout || 15000);
+        return new Promise(function (resolve) {
+            (function check() {
+                if (window.rcTerm.isReady()) { resolve(true); return; }
+                if (Date.now() >= deadline) { resolve(false); return; }
+                setTimeout(check, 100);
+            })();
+        });
+    },
+    getSessionId: function () {
+        return activeSession ? activeSession.sessionID : null;
+    },
+    setCwd: function (cwd) {
+        RC_CONFIG.cwd = cwd || '';
+    }
+};
+
+// 页面加载 → 恢复服务端仍存活的会话 (刷新不丢终端; single/embedded 不恢复)
 restoreSessions();
 
-// 带 ?cwd= 进入 (文件管理器「在终端中打开」) 且无存活会话时, 自动在指定目录开一个会话
-if (URL_CWD && sessions.length === 0) {
-    createSession('');
-}
+// 带 ?cwd= 进入 (文件管理器「在终端中打开」) 且无会话可恢复时, 自动在指定目录开一个会话
+Promise.resolve(restoreSessions()).then(function () {
+    if (URL_CWD && !EMBEDDED && sessions.length === 0) {
+        createSession('');
+    }
+});

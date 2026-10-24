@@ -208,6 +208,27 @@ body {
 }
 
 .file-name { font-size: 16px; font-weight: bold; }
+.current-path {
+    margin: 10px 0;
+    padding: 8px 12px;
+    background: #f1f3f5;
+    border-radius: 8px;
+    font-family: Consolas, monospace;
+    font-size: 14px;
+    color: #37474f;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    user-select: all;
+}
+.file-box > div {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: bold;
+}
+
 .file-size { font-size: 14px; color: #888; margin-top: 5px; }
 .action-btn {
     background: #4CAF50;
