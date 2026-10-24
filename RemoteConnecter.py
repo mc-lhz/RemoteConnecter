@@ -57,4 +57,9 @@ if __name__ == '__main__':
     # (整脚本执行两遍、插件加载两遍、exe 双份 _MEI 解压)，且 debug 调试器
     # 有任意代码执行风险；开发态可用 RC_DEBUG=0 临时关闭。
     debugMode = (not isPackaged()) and os.environ.get('RC_DEBUG', '') != '0'
-    app.run(host='0.0.0.0', port=80, debug=debugMode, use_reloader=debugMode, threaded=True)
+    # 端口默认 80；RC_PORT 可覆盖（打包冒烟/多实例调试用，不影响生产默认行为）
+    try:
+        port = int(os.environ.get('RC_PORT', '80'))
+    except ValueError:
+        port = 80
+    app.run(host='0.0.0.0', port=port, debug=debugMode, use_reloader=debugMode, threaded=True)
