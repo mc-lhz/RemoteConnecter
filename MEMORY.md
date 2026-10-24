@@ -164,6 +164,8 @@ RemoteConnecter/
 
 - ✅ **系统面板 + 文件管理器双模块（2026-10-24，分支 `feat/system-console`）**：新增 `functions/monitor`（`/monitor` 系统面板：ctypes 实现 CPU/内存/多磁盘/运行时长/空闲检测零依赖，快动作音量/锁屏/关显示器/睡眠 via keybd_event+rundll32，重启/关机带确认与 5s 延迟提示，进程 tab 按名聚合显示数量与总内存、搜索、结束（黑名单保护 smss/csrss/lsass 等关键进程与 PID<=4），窗口 tab EnumWindows 列表+激活/最小化/关闭，应用 tab 扫开始菜单 .lnk 启动；终端 pill 复用 `functions.term.term_bp.sessionMap` 计数）与 `functions/files`（`/files` 文件管理器：侧栏快速访问+盘符+收件箱(localStorage 记忆)，网格视图+图片缩略图(Pillow /files/api/thumb)，右键菜单 预览(文本多编码/图片)/记事本/问AI(复制提问模板到剪贴板)/终端中打开/下载(多项自动 zip)/压缩(zipfile)/复制/移动(冲突自动 " (n)" 后缀)/复制路径/重命名/属性/删除(保护盘根与主目录)，批量选择(ctrl/shift)+底部操作栏，显示隐藏项(GetFileAttributesW H 标记)，上传冲突自动改名；`term.js` 加 `?cwd=` 支持（connectWs 追加 cwd 且无恢复会话时自动新建），文件管理器"在终端中打开"实测提示符直达目标目录）。首页 header 增加四入口(面板/文件/终端/屏幕)。**测试基建注意**：新模块目录必须含 `__init__.py`（pkgutil 发现的前提）；GetLogicalDriveStringsW 结果须用 `ctypes.wstring_at(buf, copied)` 取全（`buf.value` 首个 NUL 截断）；`GlobalMemoryStatusEx`/`GetTickCount` 在 kernel32 不在 psapi/user32；Playwright 测结束进程必须用唯一命名的牺牲进程（复制 ping.exe 改名）并按行文本精确匹配，否则搜索未刷新时点首行会误杀 ZCode（已踩坑）。UI 页面/静态均为模块自带 template/static，蓝图名 `monitor_bp`/`files_bp` 与现有 `file_bp` 无冲突。
 
+- ✅ **收尾加固批次（2026-10-25，main `0e39d25`）**：① `RC_PORT` 环境变量覆盖监听端口（默认 80 不变，打包冒烟/多实例调试用）`0f09f98`；② **打包冒烟全过**：build.cmd 产出 28.6MB exe，`/`、`/monitor`、`/files`、`/process`、`/code`、`/terminal`、`/screenshot`(HEAD)、office health（内嵌插件+gzip 变体）、monitor ctypes stats、process 375 进程、code runtimes 全 200——四类新模块与五插件自动入包，无需改构建脚本（冒烟在其后以 RC_PORT=8099 运行、taskkill 清理）；③ 文件管理器框选（拖拽矩形实时选中，ctrl 追加、空白单击清空）+ 移动端长按选中（合成 touch 验证，右键菜单对触摸抑制）`382a506`；④ 实时屏幕参数化：`fps/quality/scale` 查询参数 + 静止帧跳过（画面无变化不编码，最长 2s 保活）+ `/screenshot/api/size` 真实分辨率端点，前端「流畅/标准/高清」预设（localStorage）+ 页面隐藏自动断开恢复重连；**实测流畅档 54KB/2s vs 高清档 304KB/2s，约 5.6 倍带宽差**；点击映射改用服务端真实尺寸（缩放后 naturalWidth=1408 而非 2560 的坑）`90c854b`；⑤ monitor CPU/内存 60 点走势迷你图（canvas，纯客户端）`03aee4a`；⑥ 文件管理器拖拽上传（合成 DataTransfer drop 验证）+ 排序切换六种（localStorage 记忆）`af670cd`；⑦ 文件管理器键盘快捷键 Ctrl+A 全选 / Delete 删除 / F2 重命名 / Enter 打开（输入框聚焦时让行）+ monitor 窗口/应用也支持搜索过滤（tab 切换占位提示）`f12a4aa`；⑧ 仓库首个 README.md（功能总览/快速开始/插件开发/构建注意）`0e39d25`。全量回归：8 个 Playwright 套件（终端 7/7、工作台 6/6、监控 11、文件 16、框选 8、拖拽排序 8、快捷键 8、屏幕 8）+ 4 个 Python 套件（process api/ui、screen key/mouse）全过；code 工作台仅余 2 条既有 Monaco「Canceled」无害噪音（合并前后一致）。**测试踩坑**：Playwright 在输入框聚焦后首个组合键会投递到 CDP 旧焦点节点（用合成 KeyboardEvent 断言处理器、真实按键路径由后续步骤覆盖）；导航后等待断言须「新条目在场且旧条目不在场」，仅等条目数会被上一目录的旧渲染竞态骗过。
+
 ### 进行中 / 待办
 
 #### 产品功能（来源：GitHub release v1.5.3-beta2 的 Todo List，2 项已完成）
@@ -172,7 +174,7 @@ RemoteConnecter/
 - ✅ **远程鼠标增强（2026-10-24，分支 `feat/auto-dev-2` `4941acb`）**：滚轮（60ms 累积合并、Chromium deltaY 方向换算 pynput、±10 截断）、拖拽（6px 移动阈值 → 远端 press→move→release 序列，拖拽后 click 事件抑制 300ms 防误触，mouseup 挂 document/失焦兜底释放防卡键）、move/press/release 后端 controlType、click 支持 count（双击由两次快速单击天然产生，前端不加 dblclick 监听避免四连击）
 - ✅ **process 进程管理插件（2026-10-24，分支 `feat/auto-dev-2` `f413705`）**：`/process` 进程表（CPU 归一化单核/内存降序/500 截断）+ 名称 PID 过滤 + 3s 自动刷新（页面隐藏暂停）；终止带自保护（拒杀自身/父进程/Windows 关键系统进程）、PID 复用校验（名称不匹配 409）、terminate 超时升级 kill；依赖 psutil（main_bp 已引入，打包已覆盖）。**新插件开发参照 `plugins/process/` 的最小结构**（plugin.json + xxx_bp.py + templates/static，纯 stdlib+已打包依赖）
 - ✅ **Code 插件全工作区替换（2026-10-24，`ed5b797`）**：`POST /code/api/fs/replace` 与搜索同语义，逐文件读取→替换→带 etag 原子写回（并发冲突跳过计入 conflicts、脏标签不重载、替换内容按字面量）；搜索面板替换行 + 全部替换按钮 + 危险二次确认，完成后自动重载受影响标签/刷新树/重搜；Ctrl+H 聚焦替换框，搜索视图自动预填编辑器选中文本
-- ⏳ 优化实时屏幕，提升公网访问流畅性
+- ✅ 优化实时屏幕，提升公网访问流畅性（2026-10-25，`90c854b`：画质预设/静止帧跳过/隐藏暂停，实测约 5.6 倍带宽差，见上方）
 - ✅ 修复实时屏幕部分按键不可用的 Bug（2026-10-24，`7679fbe`，见上方已完成）
 - ✅ 远程终端多终端支持 + 断线重连（2026-10-01，分支 `feat/term-multi-reconnect`，见上方已完成）
 - ⏳ 终端图标改为动态获取，不再使用静态资源
