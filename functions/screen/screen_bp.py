@@ -96,20 +96,56 @@ def screenshotStream():
     return Response(generateFrames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
+def _buttonOf(name):
+    return Button.right if name == 'right' else Button.left
+
+
+def _intArg(name, default=0):
+    try:
+        return int(request.args.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
 @screen_bp.route('/screenshot/api/control')
 def screenshotControl():
-    """远程控制 API — 鼠标点击 & 键盘输入（支持组合键如 ctrl+c）"""
+    """远程控制 API — 鼠标点击/移动/滚轮/拖拽 & 键盘输入（支持组合键如 ctrl+c）"""
     controlType = request.args.get('controlType', None)
 
     if controlType == 'mouse':
-        # 鼠标点击：根据请求参数设置坐标和按钮
+        # 鼠标点击：坐标 + 按钮 + 次数（2=双击）
         x = request.args.get('x', None)
         y = request.args.get('y', None)
-        button = Button.left if request.args.get('button', 'left') == 'left' else Button.right
-        if x and y:
-            mouseController.position = (int(x), int(y))
-            mouseController.click(button, 1)
+        button = _buttonOf(request.args.get('button', 'left'))
+        count = max(1, min(_intArg('count', 1), 3))
+        if x is not None and y is not None:
+            mouseController.position = (_intArg('x'), _intArg('y'))
+            mouseController.click(button, count)
             return '鼠标点击成功'
+
+    elif controlType == 'move':
+        # 仅移动（拖拽过程中的位置更新）
+        if request.args.get('x') is not None and request.args.get('y') is not None:
+            mouseController.position = (_intArg('x'), _intArg('y'))
+            return '鼠标移动成功'
+
+    elif controlType == 'wheel':
+        # 滚轮：dx 水平 dy 垂直（正值为向上/右）
+        dx = max(-10, min(_intArg('dx'), 10))
+        dy = max(-10, min(_intArg('dy'), 10))
+        if dx or dy:
+            mouseController.scroll(dx, dy)
+        return '滚轮成功'
+
+    elif controlType == 'press':
+        # 按下鼠标（配合 move + release 实现拖拽）
+        mouseController.press(_buttonOf(request.args.get('button', 'left')))
+        return '鼠标按下成功'
+
+    elif controlType == 'release':
+        # 释放鼠标
+        mouseController.release(_buttonOf(request.args.get('button', 'left')))
+        return '鼠标释放成功'
 
     elif controlType == 'keyboard':
         # 支持两种传参：keys 多参数逐键传输（keys=shift&keys=%2B，可表达

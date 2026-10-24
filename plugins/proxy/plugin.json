@@ -1,4 +1,5 @@
 {
     "id": "proxy",
-    "entry": "proxy_bp.py"
-   }
+    "entry": "proxy_bp.py",
+    "lib": "lib"
+}

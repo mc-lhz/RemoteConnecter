@@ -169,6 +169,8 @@ RemoteConnecter/
 #### 产品功能（来源：GitHub release v1.5.3-beta2 的 Todo List，2 项已完成）
 - ✅ 文件列表改为仅显示文件名 + 顶部路径栏（2026-10-24，`81b8b99`）：`file-manager.js` 列表项从完整路径改 basename（保留原大小写，盘符根显示 `C:`），完整路径移 `data-path`（点击改读 dataset，修复含空格/中文路径的文件打开 URL 未编码问题），新增 `#current-path` 路径栏随目录切换
 - ✅ **实时屏幕"部分按键不可用"修复（2026-10-24，`7679fbe`）**：四类根因——①含 `+` 的字符被组合键 `split('+')` 撕碎（改逐键多参数 `keys=a&keys=%2B`，后端 `getlist`，旧单参数格式兼容）；②孤立修饰键从不转发（单按 Shift 切输入法/单按 Alt 呼出菜单栏/Ctrl+Shift 切输入法全失效——前端补修饰键状态机：纯修饰组合在第二键按下瞬间发送、孤立修饰键在松开瞬间补发）；③`ArrowLeft` 被映射成后端不认识的 `arrowleft`，pynput 当普通字符逐字打出（改映射 `left/up/down/right`）；④中文 IME 组字阶段 `e.key='Process'` 与死键 `'Dead'` 被当普通键发送（过滤+提示），另补 AltGraph→alt_gr、ContextMenu→menu。**测试方式**：后端 mock 控制器验证按键序列（绝不真实注入按键）、前端 stub `$.get` 验证映射/状态机
+- ✅ **远程鼠标增强（2026-10-24，分支 `feat/auto-dev-2` `4941acb`）**：滚轮（60ms 累积合并、Chromium deltaY 方向换算 pynput、±10 截断）、拖拽（6px 移动阈值 → 远端 press→move→release 序列，拖拽后 click 事件抑制 300ms 防误触，mouseup 挂 document/失焦兜底释放防卡键）、move/press/release 后端 controlType、click 支持 count（双击由两次快速单击天然产生，前端不加 dblclick 监听避免四连击）
+- ✅ **process 进程管理插件（2026-10-24，分支 `feat/auto-dev-2` `f413705`）**：`/process` 进程表（CPU 归一化单核/内存降序/500 截断）+ 名称 PID 过滤 + 3s 自动刷新（页面隐藏暂停）；终止带自保护（拒杀自身/父进程/Windows 关键系统进程）、PID 复用校验（名称不匹配 409）、terminate 超时升级 kill；依赖 psutil（main_bp 已引入，打包已覆盖）。**新插件开发参照 `plugins/process/` 的最小结构**（plugin.json + xxx_bp.py + templates/static，纯 stdlib+已打包依赖）
 - ✅ **Code 插件全工作区替换（2026-10-24，`ed5b797`）**：`POST /code/api/fs/replace` 与搜索同语义，逐文件读取→替换→带 etag 原子写回（并发冲突跳过计入 conflicts、脏标签不重载、替换内容按字面量）；搜索面板替换行 + 全部替换按钮 + 危险二次确认，完成后自动重载受影响标签/刷新树/重搜；Ctrl+H 聚焦替换框，搜索视图自动预填编辑器选中文本
 - ⏳ 优化实时屏幕，提升公网访问流畅性
 - ✅ 修复实时屏幕部分按键不可用的 Bug（2026-10-24，`7679fbe`，见上方已完成）

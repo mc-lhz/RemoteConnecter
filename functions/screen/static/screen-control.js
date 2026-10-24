@@ -68,23 +68,114 @@ function imgToScreen(img, clientX, clientY) {
     return { x: screenX, y: screenY };
 }
 
-function sendClick(x, y, button) {
-    button = button || 'left';
-    var url = '/screenshot/api/control?controlType=mouse&x=' + x + '&y=' + y + '&button=' + button;
-    fetch(url).then(function(r) { return r.text(); }).then(function(msg) {
-        console.log('点击已发送 (' + button + '):', x, y, '→', msg);
-    }).catch(function(err) {
-        console.error('发送失败:', err);
-    });
+function sendControl(params) {
+    var url = '/screenshot/api/control?' + params;
+    $.get(url)
+        .done(function(response) { console.log('控制响应:', response, params); })
+        .fail(function(xhr, status) { console.error('控制请求失败:', status, params); });
 }
 
+function sendClick(x, y, button, count) {
+    button = button || 'left';
+    sendControl('controlType=mouse&x=' + x + '&y=' + y
+        + '&button=' + button + '&count=' + (count || 1));
+}
+
+function sendMove(x, y) {
+    sendControl('controlType=move&x=' + x + '&y=' + y);
+}
+
+function sendPress(button) {
+    sendControl('controlType=press&button=' + (button || 'left'));
+}
+
+function sendRelease(button) {
+    sendControl('controlType=release&button=' + (button || 'left'));
+}
+
+// ---- 左键点击 / 拖拽 ----
+// 简单点击沿用 click 事件；按住并移动超过阈值进入拖拽模式
+// （远端 press → move... → release），拖拽结束后的 click 事件被抑制
+var dragArmed = false;
+var dragging = false;
+var dragStart = null;      // {clientX, clientY, screenX, screenY}
+var lastMoveSend = 0;
+var suppressClick = false;
+
+streamImg.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) { return; }
+    var p = imgToScreen(this, e.clientX, e.clientY);
+    if (!p) { return; }
+    dragArmed = true;
+    dragging = false;
+    dragStart = { clientX: e.clientX, clientY: e.clientY, screenX: p.x, screenY: p.y };
+    e.preventDefault();
+});
+
+streamImg.addEventListener('mousemove', function(e) {
+    if (!dragArmed || !(e.buttons & 1)) { return; }
+    if (!dragging) {
+        var dx = e.clientX - dragStart.clientX;
+        var dy = e.clientY - dragStart.clientY;
+        if (dx * dx + dy * dy < 36) { return; }   // 6px 阈值
+        dragging = true;
+        sendMove(dragStart.screenX, dragStart.screenY);
+        sendPress('left');
+        lastMoveSend = Date.now();
+    }
+    var now = Date.now();
+    if (now - lastMoveSend < 60) { return; }
+    lastMoveSend = now;
+    var p = imgToScreen(this, e.clientX, e.clientY);
+    if (p) { sendMove(p.x, p.y); }
+});
+
+function endDrag() {
+    dragArmed = false;
+    if (dragging) {
+        dragging = false;
+        sendRelease('left');
+        suppressClick = true;
+        setTimeout(function () { suppressClick = false; }, 300);
+    }
+}
+
+document.addEventListener('mouseup', endDrag);
+window.addEventListener('blur', endDrag);
+
 streamImg.addEventListener('click', function(e) {
-    console.log('click 事件触发');
+    if (suppressClick) { return; }
     var pos = imgToScreen(this, e.clientX, e.clientY);
     if (!pos) { console.warn('分辨率未就绪'); return; }
-    console.log('屏幕坐标:', pos.x, pos.y);
     sendClick(pos.x, pos.y);
 });
+
+// ---- 滚轮 ----
+// Chromium deltaY>0 为向下；pynput 垂直正值向上，故取反。
+// 60ms 内的多次滚动累积合并，避免请求洪泛
+var wheelTimer = null;
+var wheelDX = 0;
+var wheelDY = 0;
+
+streamImg.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var step = 1;
+    if (e.deltaMode === 1) { step = 3; }
+    else if (e.deltaMode === 2) { step = 16; }
+    if (e.deltaX) { wheelDX += Math.sign(e.deltaX) * step; }
+    if (e.deltaY) { wheelDY += -Math.sign(e.deltaY) * step; }
+    if (wheelTimer) { return; }
+    wheelTimer = setTimeout(function() {
+        wheelTimer = null;
+        var sendX = Math.max(-10, Math.min(10, wheelDX));
+        var sendY = Math.max(-10, Math.min(10, wheelDY));
+        wheelDX = 0;
+        wheelDY = 0;
+        if (sendX || sendY) {
+            sendControl('controlType=wheel&dx=' + sendX + '&dy=' + sendY);
+        }
+    }, 60);
+}, { passive: false });
 
 // 禁用右键菜单 → 发送右键
 streamImg.addEventListener('contextmenu', function(e) {
