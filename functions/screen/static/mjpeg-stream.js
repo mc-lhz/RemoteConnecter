@@ -1,14 +1,15 @@
 var streamImg = document.getElementById('mjpeg-stream');
 var fpsDisplay = document.getElementById('fps-display');
 
-// ---- 画质预设（直接影响公网流畅性: fps/quality/scale）----
+// ---- 画质预设（直接影响公网流畅性: fps/quality/scale；auto=1 消费速度自适应）----
 var PRESETS = {
+    auto: { label: '自动（推荐）', fps: 10, quality: 95, scale: 1, auto: 1 },
     smooth: { label: '流畅', fps: 6, quality: 55, scale: 0.55 },
     standard: { label: '标准', fps: 10, quality: 75, scale: 1 },
     hd: { label: '高清', fps: 15, quality: 90, scale: 1 }
 };
 var PRESET_KEY = 'rc-screen-preset';
-var currentPreset = 'standard';
+var currentPreset = 'auto';
 try {
     if (PRESETS[localStorage.getItem(PRESET_KEY)]) { currentPreset = localStorage.getItem(PRESET_KEY); }
 } catch (e) { /* ignore */ }
@@ -20,7 +21,7 @@ var lastFpsUpdate = Date.now();
 function buildStreamUrl() {
     var p = PRESETS[currentPreset];
     return '/screenshot/api/stream?fps=' + p.fps + '&quality=' + p.quality +
-        '&scale=' + p.scale + '&t=' + Date.now();
+        '&scale=' + p.scale + (p.auto ? '&auto=1' : '&auto=0') + '&t=' + Date.now();
 }
 
 function connectStream() {
