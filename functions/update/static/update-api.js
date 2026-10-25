@@ -144,3 +144,69 @@ localUpdateBtn.addEventListener('click', function() {
         }
     });
 });
+// ===== 检查更新 / 节点池一键更新 =====
+var checkUpdateBtn = document.getElementById('check-update-btn');
+var nodepoolUpdateBtn = document.getElementById('nodepool-update-btn');
+var checkUpdateMessage = document.getElementById('check-update-message');
+var currentVersionBox = document.getElementById('current-version');
+
+if (checkUpdateBtn) {
+    checkUpdateBtn.addEventListener('click', function() {
+        checkUpdateBtn.disabled = true;
+        checkUpdateBtn.textContent = '检查中...';
+        showMessage(checkUpdateMessage, '正在获取最新发行版信息...', 'info');
+
+        $.get('/update/api/check', function(data) {
+            checkUpdateBtn.disabled = false;
+            checkUpdateBtn.textContent = '检查更新';
+            if (currentVersionBox && data.current) {
+                currentVersionBox.textContent = data.current;
+            }
+            if (data.error) {
+                showMessage(checkUpdateMessage, data.error, 'error');
+                return;
+            }
+            if (data.updateAvailable) {
+                showMessage(checkUpdateMessage,
+                    '发现新版本 ' + data.latest + '（当前 ' + data.current + '）', 'success');
+                nodepoolUpdateBtn.style.display = '';
+            } else {
+                showMessage(checkUpdateMessage,
+                    '已是最新版本（' + data.current + '）', 'success');
+                nodepoolUpdateBtn.style.display = 'none';
+            }
+        }).fail(function(xhr) {
+            checkUpdateBtn.disabled = false;
+            checkUpdateBtn.textContent = '检查更新';
+            var msg = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : xhr.statusText;
+            showMessage(checkUpdateMessage, '检查失败: ' + msg, 'error');
+        });
+    });
+}
+
+if (nodepoolUpdateBtn) {
+    nodepoolUpdateBtn.addEventListener('click', function() {
+        if (!window.confirm('将通过加速节点下载最新版本并自动替换重启，继续吗？')) {
+            return;
+        }
+        nodepoolUpdateBtn.disabled = true;
+        nodepoolUpdateBtn.textContent = '更新中...';
+        showMessage(checkUpdateMessage, '正在测速并下载（节点池加速，可能需要数分钟）...', 'info');
+
+        $.post(updateApi, { updateMethod: 'nodepool' }, function(data) {
+            if (data.status === 'success') {
+                showMessage(checkUpdateMessage, '更新成功，' + data.message, 'success');
+                startReconnect();
+            } else {
+                showMessage(checkUpdateMessage, '更新失败，' + data.message, 'error');
+                nodepoolUpdateBtn.disabled = false;
+                nodepoolUpdateBtn.textContent = '一键更新';
+            }
+        }).fail(function(xhr, status, error) {
+            var msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : error;
+            showMessage(checkUpdateMessage, '请求失败: ' + msg, 'error');
+            nodepoolUpdateBtn.disabled = false;
+            nodepoolUpdateBtn.textContent = '一键更新';
+        });
+    });
+}

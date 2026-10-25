@@ -9,6 +9,13 @@
 <body>
     <h1>软件更新</h1>
     <div id="update-wrapper">
+        <div id="check-update-container">
+            <h3>检查更新</h3>
+            <div id="version-line">当前版本：<b id="current-version">--</b></div>
+            <button id="check-update-btn" type="button">检查更新</button>
+            <button id="nodepool-update-btn" type="button" style="display:none">一键更新</button>
+            <div id="check-update-message"></div>
+        </div>
         <div id="remote-update-container">
             <h3>远程更新</h3>
             <input id="update-url" type="url" name="updateUrl" placeholder="https://example.com/update.exe" value="">
