@@ -89,34 +89,85 @@ def _streamParam(name, default, low, high, cast=float):
     return max(low, min(high, value))
 
 
+# ---- 自适应档位：客户端消费不动时自动降档（画质/分辨率）----
+# 拥塞信号：帧循环起点间隔的 EMA 超出预算（interval）的部分。客户端消费慢
+# 会填满 socket 缓冲，werkzeug 写阻塞使循环间隔拉长——纯服务端可测，无需
+# 客户端上报。用户传入的 quality/scale 是上限，自适应只能在上限内降。
+STREAM_LEVELS = [
+    # (quality, scale)  level 0 = 用户上限
+    (80, 1.00),
+    (65, 0.85),
+    (55, 0.70),
+    (45, 0.55),
+    (35, 0.45),
+    (30, 0.35),
+]
+STREAM_RAISE_FRAMES = 60      # 连续畅通 60 帧才升一档（迟滞防振荡）
+STREAM_DROP_LAG_RATIO = 0.5   # EMA lag 超预算 50% 即降档（快降慢升）
+STREAM_RAISE_LAG = 0.0
+STREAM_EMA_ALPHA = 0.1
+
+
+def streamDecide(level, emaLag, budget, fastStreak):
+    """根据平滑滞后调整档位。返回 (newLevel, newFastStreak)。"""
+    if emaLag > budget * STREAM_DROP_LAG_RATIO and level < len(STREAM_LEVELS) - 1:
+        return level + 1, 0
+    if emaLag <= STREAM_RAISE_LAG and level > 0:
+        fastStreak += 1
+        if fastStreak >= STREAM_RAISE_FRAMES:
+            return level - 1, 0
+        return level, fastStreak
+    return level, 0 if emaLag > STREAM_RAISE_LAG else fastStreak
+
+
 @screen_bp.route('/screenshot/api/stream')
 def screenshotStream():
     """MJPEG 实时屏幕流。
 
-    参数: fps(1-20, 默认10) / quality(30-95, 默认80) / scale(0.25-1, 默认1)。
+    参数: fps(1-20, 默认10) / quality(30-95, 默认80) / scale(0.25-1, 默认1)
+          / auto(0/1, 默认1 消费速度自适应)。
     静止帧跳过: 画面无变化时不编码不发送 (最长 2s 补发一帧保连接), 大幅省带宽与 CPU。
+    自适应: 客户端消费不及时自动降画质/分辨率（用户参数为上限），持续
+    畅通才升回——公网慢链路自动让出带宽。
     """
     fps = _streamParam('fps', 10, 1, 20)
     quality = _streamParam('quality', 80, 30, 95, int)
     scale = _streamParam('scale', 1.0, 0.25, 1.0)
+    auto = request.args.get('auto', '1') != '0'
     interval = 1.0 / fps
     keepAliveSeconds = 2.0
 
     def generateFrames():
         prevThumb = None
         lastSent = 0.0
+        level = 0
+        emaLag = 0.0
+        fastStreak = 0
+        lastLoopStart = time.time()
         while True:
+            loopStart = time.time()
+            loopInterval = loopStart - lastLoopStart
+            lastLoopStart = loopStart
+            emaLag = (1 - STREAM_EMA_ALPHA) * emaLag + STREAM_EMA_ALPHA * (loopInterval - interval)
+            if auto:
+                level, fastStreak = streamDecide(level, emaLag, interval, fastStreak)
+                levelQuality, levelScale = STREAM_LEVELS[level]
+                adjQuality = min(quality, levelQuality)
+                adjScale = min(scale, levelScale)
+            else:
+                adjQuality, adjScale = quality, scale
+
             started = time.time()
             screenshot = ImageGrab.grab()
-            if scale < 1.0:
+            if adjScale < 1.0:
                 screenshot = screenshot.resize(
-                    (max(1, int(screenshot.width * scale)), max(1, int(screenshot.height * scale))))
+                    (max(1, int(screenshot.width * adjScale)), max(1, int(screenshot.height * adjScale))))
             thumb = screenshot.convert('L').resize((160, 90))
             changed = prevThumb is None or ImageChops.difference(prevThumb, thumb).getbbox() is not None
             now = time.time()
             if changed or (now - lastSent) > keepAliveSeconds:
                 imgIo = io.BytesIO()
-                screenshot.save(imgIo, 'JPEG', quality=quality)
+                screenshot.save(imgIo, 'JPEG', quality=adjQuality)
                 frameData = imgIo.getvalue()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n'
