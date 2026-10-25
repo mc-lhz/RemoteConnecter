@@ -70,13 +70,47 @@ def assetDownloadUrl(release):
     return f"https://github.com/{REPO_PATH}/releases/latest/download/{ASSET_NAME}"
 
 
-def downloadUpdater(availableNodes, release=None, timeout=60.0):
-    """经加速节点逐个尝试下载更新，成功返回 True。"""
+def compareVersion(a, b):
+    """比较 v 前缀版本号（SemVer 近似：数字段比较，预发布 < 正式）。
+
+    返回 -1/0/1（a<b / 相等 / a>b）。无法解析的段按 0 处理。
+    """
+    def parse(v):
+        v = str(v or '').strip().lstrip('vV')
+        core, _, pre = v.partition('-')
+        parts = []
+        for seg in core.split('.'):
+            try:
+                parts.append(int(seg))
+            except ValueError:
+                parts.append(0)
+        while len(parts) < 3:
+            parts.append(0)
+        # 预发布（如 1.8.0-beta.1）小于同号正式版
+        return parts, (1 if pre else 0)
+
+    pa, prea = parse(a)
+    pb, preb = parse(b)
+    if pa < pb:
+        return -1
+    if pa > pb:
+        return 1
+    # 同号版本：预发布（-beta 等）小于正式版
+    return (preb > prea) - (preb < prea)
+
+
+def downloadUpdater(availableNodes, release=None, timeout=60.0, targetPath=None):
+    """经加速节点逐个尝试下载更新，成功返回 True。
+
+    targetPath 缺省下载到脚本目录（独立脚本用法）；更新流程应传
+    utils.UPDATER_PATH，配合 startUpdate 完成替换重启。
+    """
     if not availableNodes:
         print("没有可用节点")
         return False
     releaseUrl = assetDownloadUrl(release)
-    targetPath = os.path.join(SCRIPT_DIR, ASSET_NAME)
+    if not targetPath:
+        targetPath = os.path.join(SCRIPT_DIR, ASSET_NAME)
     tempPath = targetPath + ".downloading"
 
     for node in availableNodes:
