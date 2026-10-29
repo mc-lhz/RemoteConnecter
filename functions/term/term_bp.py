@@ -21,6 +21,7 @@ cmd 可为任意支持终端的程序, 例如: cmd / powershell / python 等。
 import json
 import os
 import queue
+import re
 import socket
 import subprocess
 import sys
@@ -53,6 +54,17 @@ REAPER_INTERVAL = 10   # 回收线程扫描周期(秒)
 MAX_BACKLOG = 20000    # 会话无人附着时输出队列上限(条), 超出丢最旧
 
 REPLAY_MAX = 512 * 1024  # 回放缓冲上限(字符/字节近似), 供重连回放重建画面, 超出丢最旧
+
+# DEC 私有模式追踪: 回放缓冲是滚动的, TUI 应用 (opencode/vim/htop...) 启动初期发出的
+# 模式开启序列 (?1000h 鼠标上报 / ?1006h SGR 编码 / ?1049h 备用屏 / ?2004h 括号粘贴)
+# 会被后续重绘输出淘汰出缓冲 -> 切换设备/刷新的 fresh 客户端回放重建了画面却丢了模式,
+# 典型表现: 滚轮无法透传给 opencode (xterm.js 未进入鼠标上报模式, 滚轮被当本地滚动)。
+# 因此在 _reader 线程持续扫描输出流维护模式状态, fresh 客户端回放前先重放开启中的模式。
+RESTORE_MODES = (1000, 1002, 1003, 1004, 1005, 1006, 1015, 1047, 1048, 1049, 2004)
+MAX_TRACKED_MODES = 64    # modeState 防御性上限 (正常应用仅用十几种)
+SEQ_TAIL_MAX = 32         # 跨块截断序列的携带长度上限
+DEC_MODE_RE = re.compile(r'\x1b\[\?([\d;]+)([hl])')     # CSI ? n;n h / l (可一条多模式)
+SEQ_TAIL_RE = re.compile(r'\x1b(?:\[[\d;?]*)?$')         # 末尾未完成的 CSI 私有序列前缀
 
 # 全局会话注册表: {sessionID: TermSession}
 sessionMap = {}
@@ -186,16 +198,19 @@ class TermSession:
         self.lastDetachAt = time.time()  # 最近一次进入无人附着状态的时间戳
         self.replayBuf = []         # 输出滚动缓冲 (str/bytes 块), 供重连回放重建画面
         self.replaySize = 0         # replayBuf 近似大小 (str 计字符数, bytes 计字节数)
+        self.modeState = {}         # DEC 私有模式当前状态 {mode:int -> enabled:bool} (仅 _reader 写)
+        self.seqTail = ''           # 跨输出块截断的 CSI 序列前缀 (仅 _reader 写)
 
     def enqueueOut(self, item):
-        """输出入队 + 队列封顶 + 回放缓冲维护。
+        """输出入队 + 队列封顶 + 回放缓冲维护 + DEC 模式追踪。
 
-        仅 _reader 线程调用: replayBuf 的 append/pop(0) 与主线程的 list() 快照
-        在 CPython GIL 下均为 C 级原子操作, 无需加锁。
+        仅 _reader 线程调用: replayBuf/modeState/seqTail 的写与主线程的快照读
+        在 CPython GIL 下均为安全读取, 无需加锁。
         先入回放缓冲再入队, 保证"快照 ⊇ 队列积压", 回放时清积压不重不丢。
         """
         kind, payload = item
         if kind == 'data':
+            self._trackDecModes(payload)
             self.replayBuf.append(payload)
             self.replaySize += len(payload)
             while self.replaySize > REPLAY_MAX and self.replayBuf:
@@ -207,6 +222,45 @@ class TermSession:
                 self.outQueue.get_nowait()
             except queue.Empty:
                 break
+
+    def _trackDecModes(self, payload):
+        """扫描输出块中的 DEC 私有模式序列 (CSI ? n h/l), 维护 modeState。
+
+        仅 _reader 线程调用。输出块边界可能截断转义序列 (如 '\\x1b[?10' + '00h'),
+        用 seqTail 携带未完成前缀与下一块拼接补全, 保证跨块模式序列不漏。
+        """
+        try:
+            text = payload if isinstance(payload, str) else payload.decode('utf-8', errors='replace')
+        except Exception:
+            self.seqTail = ''
+            return
+        combined = self.seqTail + text
+        lastEnd = 0
+        for m in DEC_MODE_RE.finditer(combined):
+            enabled = (m.group(2) == 'h')
+            for part in m.group(1).split(';'):
+                if not part.isdigit():
+                    continue
+                mode = int(part)
+                if mode <= 0 or mode > 20000:
+                    continue
+                if len(self.modeState) >= MAX_TRACKED_MODES and mode not in self.modeState:
+                    continue
+                self.modeState[mode] = enabled
+            lastEnd = m.end()
+        tailMatch = SEQ_TAIL_RE.search(combined, lastEnd)
+        tail = tailMatch.group(0) if tailMatch else ''
+        self.seqTail = tail if len(tail) <= SEQ_TAIL_MAX else ''
+
+
+def decModeRestoreSeq(session):
+    """依据 modeState 生成模式恢复序列 (仅白名单内且当前开启的模式)。
+
+    主线程调用 (attach 时): 对 modeState 做快照拷贝后生成, 与 _reader 的写
+    并发安全 (GIL), 最坏情况取到微秒级旧值, 下次恢复自愈。
+    """
+    states = dict(session.modeState)
+    return ''.join('\x1b[?%dh' % m for m in RESTORE_MODES if states.get(m))
 
 
 def newSession(cmd, cwd, mode='multi'):
@@ -448,6 +502,19 @@ def wsTerminal(ws):
                            ensure_ascii=False))
     except Exception:
         pass
+
+    # fresh 客户端恢复 (replay=1): 回放前先重放当前开启中的 DEC 模式。
+    # 回放缓冲滚动淘汰会丢掉 TUI 应用启动初期的模式开启序列 (鼠标上报/备用屏等),
+    # 不补发则 fresh xterm 不进入鼠标上报模式 -> 滚轮被本地消费, opencode 等
+    # 全屏 TUI 收不到滚轮输入 (切换设备后"TTY 语义丢失")。
+    # 仅 wantReplay 时发: 同页重连的客户端模式状态仍在, 重发 ?1049h 反而会清空其备用屏。
+    if wantReplay:
+        modeSeq = decModeRestoreSeq(session)
+        if modeSeq:
+            try:
+                ws.send(modeSeq)
+            except Exception:
+                pass
 
     # 回放历史输出 (winpty 为 str, _PipeProcess 为 bytes, 需兼容解码)
     if replaySnapshot:
