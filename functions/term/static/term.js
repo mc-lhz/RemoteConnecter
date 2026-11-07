@@ -35,6 +35,8 @@ const controlKeys = document.getElementById('control-keys');
 const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebarOverlay = document.getElementById('sidebar-overlay');
+const displacedMask = document.getElementById('displaced-mask');
+const reclaimBtn = document.getElementById('reclaim-btn');
 
 function setStatus(text, cls) {
     if (statusEl) {
@@ -57,6 +59,7 @@ function stateText(s) {
         case 'connecting': return '连接中';
         case 'connected': return '已连接';
         case 'reconnecting': return '重连中 ' + (s.retryCount || 0);
+        case 'apoptotic': return '被接管';
         case 'detached': return '已断开';
         case 'ended': return '已退出';
         default: return s.state || '-';
@@ -106,11 +109,18 @@ function buildSessionUI(cmd, existingSessionID) {
         retryTimer: null,
         pingTimer: null,
         manualClose: false,
-        needReplay: false     // 一次性: fresh 空终端首次连接时向服务端请求画面回放, hello 后消费
+        needReplay: false,    // 一次性: fresh 空终端首次连接时向服务端请求画面回放, hello 后消费
+        displacedDismissed: false,   // 凋亡态: 用户是否已关闭全屏卡片 (关闭后走工具条兜底入口)
+        suppressData: false,        // 回放期间抑制 xterm 自动应答 (DA/DSR) 外发
+        suppressTimer: null,        // 抑制兜底超时 (服务端未回 replayDone 时自动解除)
+        replayPhase: false,         // 当前处于回放数据解析阶段 (hello 后到 replayDone 前)
+        replayParsed: false,        // 已收到 replayDone
+        pendingWrites: 0            // 回放数据中尚未解析完的 write 数
     };
 
     // 键盘输入只发给"本会话且本会话为前台"时的 ws
     term.onData(function (d) {
+        if (session.suppressData) { return; }   // 回放中: 丢弃 DA/DSR 自动应答
         if (session === activeSession && session.ws && session.ws.readyState === 1) {
             session.ws.send(d);
         }
@@ -156,9 +166,16 @@ function switchSession(session) {
     sessions.forEach(function (s) { s.el.hidden = (s !== session); });
     session.manualClose = false;
     renderSidebar();
+    updateDisplacedUI();
     if (session.state === 'ended') {
         // 已退出/错误会话: 不重连, 仅展示定格画面
         setStatus('已退出: ' + session.cmd, 'err');
+        return;
+    }
+    if (session.state === 'apoptotic') {
+        // 凋亡会话: 切前台不自动抢占, 等用户点「重新接管」, 避免与对方互踢
+        setStatus('终端已被其他设备接管', 'err');
+        updateDisplacedUI();
         return;
     }
     try { session.fit.fit(); } catch (err) { /* ignore */ }
@@ -191,6 +208,7 @@ function closeSession(session) {
         }
     }
     renderSidebar();
+    updateDisplacedUI();
 }
 
 // 页面加载时拉取服务端存活会话列表, 重建终端列表并重连恢复
@@ -223,6 +241,64 @@ function restoreSessions() {
 function clearTimers(session) {
     if (session.pingTimer) { clearInterval(session.pingTimer); session.pingTimer = null; }
     if (session.retryTimer) { clearTimeout(session.retryTimer); session.retryTimer = null; }
+    if (session.suppressTimer) { clearTimeout(session.suppressTimer); session.suppressTimer = null; }
+}
+
+// ---------------------------------------------------------------------------
+// 凋亡 / 坏死
+//   凋亡 (displaced): 服务端发 displaced 帧 —— 会话被其他客户端抢占, 进程仍保活。
+//                     停止自动重连, 弹出全屏卡片等用户点「重新接管」。
+//   坏死 (网络):     没有 displaced 帧的 onclose, 按指数退避自动重连 (无需点击)。
+// ---------------------------------------------------------------------------
+
+// 按当前前台会话状态同步遮罩与工具条兜底入口
+function updateDisplacedUI() {
+    const s = activeSession;
+    const apoptotic = !!(s && s.state === 'apoptotic');
+    if (displacedMask) {
+        displacedMask.classList.toggle('hidden', !(apoptotic && !s.displacedDismissed));
+    }
+    if (reclaimBtn) {
+        reclaimBtn.classList.toggle('hidden', !(apoptotic && s.displacedDismissed));
+    }
+}
+
+// 回放数据全部解析完才解除输入抑制。
+// xterm 的 write() 是异步解析: replayDone 到达时回放可能仍在队列里,
+// 若此时就放行 onData, 解析回放内容产生的设备应答会在之后发往 pty。
+function releaseSuppressIfDone(session) {
+    if (!session.suppressData) { return; }
+    if (!session.replayParsed || session.pendingWrites > 0) { return; }
+    session.suppressData = false;
+    if (session.suppressTimer) {
+        clearTimeout(session.suppressTimer);
+        session.suppressTimer = null;
+    }
+}
+
+// 用户点击「重新接管」: 丢弃旧连接 -> 重新 attach (保留本地画面)
+function reclaimSession(session) {
+    if (!session) { return; }
+    clearTimers(session);
+    if (session.ws) {
+        // 先置空再关闭: 旧 socket 的 onclose 因 session.ws !== socket 被忽略
+        const old = session.ws;
+        session.ws = null;
+        try { old.close(); } catch (err) { /* ignore */ }
+    }
+    session.manualClose = false;
+    session.displacedDismissed = false;
+    session.state = 'connecting';
+    // 不回放: 本端 xterm 画面/模式序列一直都在, 清屏重放会让历史里的 ESC[c
+    // 重新触发 xterm 的设备属性应答 (?1;2c), 该应答会作为输入发给 shell,
+    // 把用户下一条命令拼成乱码。接管只重新 attach, 不改本地画面。
+    setStatus('重新接管中: ' + session.cmd);
+    updateDisplacedUI();
+    connectWs(session);
+}
+
+function reclaimActiveSession() {
+    reclaimSession(activeSession);
 }
 
 function connectWs(session) {
@@ -237,6 +313,19 @@ function connectWs(session) {
     if (session.cwd) { url += '&cwd=' + encodeURIComponent(session.cwd); }
     if (TERM_MODE === 'multi' && session.sessionID) { url += '&session=' + encodeURIComponent(session.sessionID); }
     if (TERM_MODE === 'multi' && session.needReplay) { url += '&replay=1'; }
+    // 回放期间抑制 xterm 的自动应答: 回放内容里的 DA 查询会生成 (?1;2c),
+    // 放行会把应答当输入写进 pty, 污染 shell 输入缓冲。
+    session.suppressData = (TERM_MODE === 'multi' && session.needReplay);
+    session.replayPhase = false;
+    session.replayParsed = false;
+    session.pendingWrites = 0;
+    if (session.suppressData) {
+        // 兜底: 老服务端没有 replayDone 帧时, 5s 后无条件恢复输入
+        session.suppressTimer = setTimeout(function () {
+            session.suppressData = false;
+            session.suppressTimer = null;
+        }, 5000);
+    }
     if (session.state !== 'reconnecting') { session.state = 'connecting'; }
     setStatus(session.state === 'reconnecting' ? '重连中: ' + session.cmd : '连接中: ' + session.cmd);
 
@@ -259,7 +348,16 @@ function connectWs(session) {
             handleControl(session, socket, obj);
         } else {
             // 解析失败 = 原始 VT 输出 -> 直接渲染
-            session.term.write(e.data);
+            if (session.replayPhase) {
+                // 回放阶段: 统计未解析完的数据块, 全部完成后才恢复输入
+                session.pendingWrites++;
+                session.term.write(e.data, function () {
+                    session.pendingWrites--;
+                    releaseSuppressIfDone(session);
+                });
+            } else {
+                session.term.write(e.data);
+            }
         }
     };
 
@@ -270,6 +368,12 @@ function connectWs(session) {
         if (session.state === 'ended') {
             // exit/error 已在 handleControl 处理过状态
             renderSidebar();
+            return;
+        }
+        if (session.state === 'apoptotic') {
+            // 凋亡: 已收到 displaced 帧, 等用户点击「重新接管」, 不自动重连
+            renderSidebar();
+            updateDisplacedUI();
             return;
         }
         if (session.manualClose) {
@@ -297,14 +401,43 @@ function handleControl(session, socket, obj) {
     if (obj.type === 'hello') {
         session.sessionID = obj.session;
         session.needReplay = false;   // 一次性消费: 同页后续重连不再请求回放 (避免画面重复)
+        if (session.suppressData) {
+            // 本次连接带 replay=1: 进入回放解析阶段, 期间丢弃自动应答
+            session.replayPhase = true;
+            session.replayParsed = false;
+            session.pendingWrites = 0;
+        }
         if (obj.resumed === false) {
             session.term.reset();   // 新进程: 清空; resumed=true 时保留画面 (现场恢复)
+            // 新进程不会回放 (服务端 wantReplay 要求 resumed), 立即解除输入抑制,
+            // 否则要等 5s 兜底超时才能输入
+            session.replayParsed = true;
+            releaseSuppressIfDone(session);
         }
         session.state = 'connected';
         setStatus('已连接: ' + (obj.cmd || session.cmd), 'ok');
         try { session.fit.fit(); } catch (err) { /* ignore */ }
         sendResizeFor(session);
         renderSidebar();
+        updateDisplacedUI();          // 已恢复连接: 收起凋亡遮罩/兜底按钮
+        return;
+    }
+    if (obj.type === 'displaced') {
+        // 凋亡: 被其他客户端抢占。不进入重连态, 等用户手动接管
+        clearTimers(session);
+        session.state = 'apoptotic';
+        session.displacedDismissed = false;
+        // 不置 needReplay: 本地画面保持原样, 接管时只重新 attach
+        setStatus('终端已被其他设备接管', 'err');
+        renderSidebar();
+        updateDisplacedUI();
+        return;
+    }
+    if (obj.type === 'replayDone') {
+        // 回放帧已发完; 等待 xterm 解析队列排空后再恢复输入 (见 releaseSuppressIfDone)
+        session.replayPhase = false;
+        session.replayParsed = true;
+        releaseSuppressIfDone(session);
         return;
     }
     if (obj.type === 'exit') {
@@ -334,7 +467,8 @@ function scheduleReconnect(session) {
     session.retryCount += 1;
     session.state = 'reconnecting';
     const delay = Math.min(RECONNECT_BASE * Math.pow(2, session.retryCount - 1), RECONNECT_MAX);
-    setStatus('重连中 (第 ' + session.retryCount + ' 次)', 'err');
+    // 坏死: 显示指数退避的实际等待秒数, 让用户知道下次重试时间
+    setStatus('重连中 (第 ' + session.retryCount + ' 次, ' + Math.round(delay / 1000) + 's 后重试)', 'err');
     renderSidebar();
     session.retryTimer = setTimeout(function () {
         session.retryTimer = null;
@@ -433,6 +567,22 @@ if (sidebarOverlay) {
     sidebarOverlay.addEventListener('click', function () {
         setSidebarOpen(false);
     });
+}
+
+// 凋亡态交互: 全屏卡片主/次按钮 + 工具条兜底按钮
+const displacedReclaim = document.getElementById('displaced-reclaim');
+if (displacedReclaim) {
+    displacedReclaim.addEventListener('click', function () { reclaimActiveSession(); });
+}
+const displacedDismiss = document.getElementById('displaced-dismiss');
+if (displacedDismiss) {
+    displacedDismiss.addEventListener('click', function () {
+        if (activeSession) { activeSession.displacedDismissed = true; }
+        updateDisplacedUI();
+    });
+}
+if (reclaimBtn) {
+    reclaimBtn.addEventListener('click', function () { reclaimActiveSession(); });
 }
 
 // 单击状态文字 → 切换控制键区显示/隐藏 (标记挂在 #control-keys 上, 避免被 setStatus 重写 className 清掉)

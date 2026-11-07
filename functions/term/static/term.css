@@ -298,3 +298,89 @@ body {
     #cmd { min-width: 0; }        /* 解除 120px 下限，让输入框可压缩，避免整行溢出 */
     .control-key { width: 40px; height: 40px; }   /* 触控目标加大，方便手指点按 */
 }
+
+/* ---------------------------------------------------------------------------
+   凋亡态: 会话被其他设备接管
+   遮罩覆盖全屏（含工具条），阻断操作；关闭卡片后工具条保留 #reclaim-btn 兜底入口。
+   --------------------------------------------------------------------------- */
+#displaced-mask {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 200;                 /* 高于侧边栏(100)与遮罩(90) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(1, 4, 9, 0.72);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+}
+#displaced-mask.hidden { display: none; }
+
+.displaced-card {
+    width: min(420px, calc(100vw - 32px));
+    padding: 28px 28px 22px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    text-align: center;
+}
+.displaced-card-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #e6edf3;
+    margin-bottom: 10px;
+}
+.displaced-card-desc {
+    margin: 0 0 20px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #8b949e;
+}
+.displaced-card-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+.displaced-primary {
+    padding: 9px 20px;
+    background: #238636;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+}
+.displaced-primary:hover { background: #2ea043; }
+.displaced-secondary {
+    padding: 9px 20px;
+    background: #21262d;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+}
+.displaced-secondary:hover { background: #30363d; }
+
+/* 工具条兜底入口: 仅在关闭遮罩卡片后出现 */
+#reclaim-btn {
+    padding: 8px 14px;
+    background: #9e6a03;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+#reclaim-btn:hover { background: #d29922; }
+#reclaim-btn.hidden { display: none; }
+
+@media (max-width: 640px) {
+    .displaced-card { padding: 22px 18px 18px; }
+    .displaced-card-actions { flex-direction: column; }
+}
