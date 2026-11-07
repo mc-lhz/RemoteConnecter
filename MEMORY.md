@@ -11,7 +11,7 @@
 
 **形态**：Flask 后端 + 浏览器控制终端，打包为单文件 exe 部署在机房电脑上，通过浏览器（局域网/内网穿透）远程管理。
 
-**当前版本**：`v1.7.2-beta.2`（main 顶 `e286549`，git tag 最新 `v1.7.2-beta.2`；工作区**干净**、与 origin/main 完全同步，无未提交改动。`dist/RemoteConnecter.exe` 21MB 已按该版本打包）
+**当前版本**：`v1.7.2`（从 `feat/term-displaced-takeover` 分支发布，分支顶 `95263c1` + release 提交，tag `v1.7.2`；main 仍停在 `v1.7.2-beta.2`（`e286549`），本次**未合并 main**。`dist/RemoteConnecter.exe` 按该版本打包）
 
 **技术栈**：
 - 后端：Python 3.9（`python39/` 内嵌环境）、Flask 3.1.2、flask_sock（WebSocket）、pywinpty（ConPTY 终端）、pygame（音频播放）、Pillow/pyautogui（屏幕控制）
@@ -326,5 +326,6 @@ build.cmd --show-console
 - **v1.6-beta1**（Pre-release）：插件系统核心（目录/清单/契约/容错完整文档）+ 首页网卡 IP 列表
 - **v1.6-beta2**（Pre-release）：插件系统完善（四级目录覆盖、static/templates/lib、单插件失败不阻断）
 - **v1.7 → v1.7.2-beta.2**（本地 tag 依次为 `v1.7` / `v1.7.1-beta.1` / `v1.7.1` / `v1.7.2-beta.1` / `v1.7.2-beta.2`，后者 = `e286549`）：多终端会话与断线重连、侧边栏覆盖层、系统面板/文件管理器、实时屏幕参数化、Code 工作台等，详见第四、五节
+- **v1.7.2**（正式版，2026-11-07，从 `feat/term-displaced-takeover` 分支发布，**未合并 main**）：终端抢占接管（凋亡/坏死两种语义 + 全屏接管卡片 + 兜底入口）、回放注入设备应答导致首条命令乱码修复
 - 发布地址：`https://github.com/mc-lhz/RemoteConnecter/releases`（gitee 同步）
 - 发版惯例：beta 为 Pre-release，正式版不带 Pre 标记；CHANGELOG 含 新增/优化/修复/注意/升级说明 分段
