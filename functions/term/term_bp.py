@@ -440,6 +440,8 @@ def wsTerminal(ws):
         后端 -> 前端  文本帧: 终端输出 (VT 序列)
                       JSON 帧: {"type":"hello","session":..,"resumed":bool,"cmd":..}
                                (attach 成功后的第一帧, 前端据此决定 reset 与否)
+                               {"type":"displaced"}  会话被其他客户端抢占, 本连接即将关闭
+                               {"type":"replayDone"} 回放结束, 前端可恢复输入
                                {"type":"exit","code":..} / {"type":"error","msg":..}
                                {"type":"pong"}
     """
@@ -525,12 +527,30 @@ def wsTerminal(ws):
             except Exception:
                 break
 
+    # 回放结束标记: 前端在回放期间抑制 xterm 的自动应答 (DA/DSR)。
+    # 回放内容里的设备属性查询会让 xterm 生成应答 (?1;2c), 若放行 onData,
+    # 该应答会被当成用户输入写进 pty, 污染 shell 的输入缓冲 —— 表现为
+    # 用户下一条命令前面多了不可见字节, 被执行成一条乱码命令。
+    if wantReplay:
+        try:
+            ws.send(json.dumps({'type': 'replayDone'}, ensure_ascii=False))
+        except Exception:
+            pass
+
     try:
         while True:
             # 失权检测: 被抢占或会话被终结 -> 退出主循环 (保活: 不杀进程)
             with session.sessionLock:
                 mine = (session.attached is ws)
             if not mine:
+                # 凋亡: 会话被其他客户端抢占。必须显式告知旧附着者, 否则前端只能
+                # 从 onclose 得知断开, 无法区分「被接管」与「网络波动」,
+                # 会立即自动重连把对方踢掉, 形成两端每秒互踢的死循环。
+                try:
+                    ws.send(json.dumps({'type': 'displaced'}, ensure_ascii=False))
+                except Exception:
+                    pass
+                Log.i('term', f'displaced session={session.sessionID}')
                 break
 
             # 优先排空输出队列, 所有 ws.send 收敛到主线程

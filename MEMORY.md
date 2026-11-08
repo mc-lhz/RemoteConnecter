@@ -1,7 +1,7 @@
 # RemoteConnecter — AI Agent 长期维护记忆
 
 > 本文件为 AI 助手维护本项目时的长期参考。每次改动后请更新"当前状态"与"历史改动"。
-> 最后更新：2026-10-24
+> 最后更新：2026-11-07
 
 ---
 
@@ -11,7 +11,7 @@
 
 **形态**：Flask 后端 + 浏览器控制终端，打包为单文件 exe 部署在机房电脑上，通过浏览器（局域网/内网穿透）远程管理。
 
-**当前版本**：`v1.7-beta.1`（仓库已提交版；main 最新 `3d6de69`，git tag 最新 `v1.7-beta.1`。工作区另有**未提交**改动：`utils.py` VERSION 已改 `v1.7.1-beta.1`、build.cmd、plugins/proxy 调整）
+**当前版本**：`v1.7.2`（从 `feat/term-displaced-takeover` 分支发布，分支顶 `95263c1` + release 提交，tag `v1.7.2`；main 仍停在 `v1.7.2-beta.2`（`e286549`），本次**未合并 main**。`dist/RemoteConnecter.exe` 按该版本打包）
 
 **技术栈**：
 - 后端：Python 3.9（`python39/` 内嵌环境）、Flask 3.1.2、flask_sock（WebSocket）、pywinpty（ConPTY 终端）、pygame（音频播放）、Pillow/pyautogui（屏幕控制）
@@ -33,7 +33,7 @@ RemoteConnecter/
 ├── hosts/                  # ★ 宿主层（v1.6-beta1 抽离）
 │   ├── blueprintHost.py    # 蓝图宿主：discoverBuiltinBlueprints / registerModuleBlueprints / initSockInstances
 │   └── pluginHost.py       # 插件宿主：getPluginDirs / loadPlugins / loadPluginFile / loadAndRegisterPlugins
-├── plugins/                # 官方插件（sample/proxy，已入库随 exe 内嵌；proxy/lib 为未跟踪私有依赖）
+├── plugins/                # 官方插件（sample/proxy，已入库随 exe 内嵌；proxy/lib 的 42 个依赖文件同样入库）
 ├── utils.py                # 工具库：VERSION、resourcePath、isPackaged、_MEI 清理、文件浏览、自动更新
 ├── Logcat.py               # 彩色日志模块（info/warn/error/debug）
 ├── functions/              # ★ 业务模块集合（自动扫描）
@@ -41,15 +41,17 @@ RemoteConnecter/
 │   ├── main/               # 主页 + 文件管理（main_bp.py + file_bp.py）
 │   ├── screen/             # 屏幕截图/推流/远程控制（screen_bp.py）
 │   ├── term/               # 终端 WebSocket/ConPTY（term_bp.py + sock）
+│   ├── monitor/            # 系统面板（monitor_bp.py）
+│   ├── files/              # 文件管理器（files_bp.py）
 │   ├── bilimusic/          # B站音乐（bilimusic_bp.py + bilimusic.py API）
-│   ├── update/             # 自动更新（update_bp.py）
+│   ├── update/             # 自动更新（update_bp.py + repoUpdate.py）
 │   └── shared/static/      # 公共静态资源（jquery 等）
 ├── bin/ffmpeg.exe          # 转码二进制（m4a→wav）
 ├── upx/                    # UPX 压缩工具
 ├── python39/               # 内嵌 Python 3.9 环境（打包用）
 ├── Installer/              # 安装器（含 RunAsAdministrator.cmd、sys32 安装脚本）
 ├── build.cmd               # 唯一打包入口（纯 cmd，自动扫描蓝图/数据；生产隐藏黑窗，传 --show-console 调试）
-├── 更新说明.md             # 各版本更新日志
+├── README.md               # 功能总览 / 快速开始 / 插件开发 / 构建注意（更新日志不入库，发版走 GitHub Release）
 └── MEMORY.md               # 本文件
 ```
 
@@ -106,7 +108,7 @@ RemoteConnecter/
 每个业务蓝图声明 `template_folder='templates'`、`static_folder='static'`，前端文件放各自业务目录内，不走全局 static。
 
 ### 5. 路由约定
-- 无 url_prefix 的短路由：`/`（main 主页）、`/terminal`（term）、`/screenshot`（screen）、`/bilimusic`（bilimusic）、`/update`（update）、`/download`、`/upload`（file）
+- 无 url_prefix 的短路由：`/`（main 主页）、`/terminal`（term）、`/screenshot`（screen）、`/monitor`（monitor）、`/files`（files）、`/bilimusic`（bilimusic）、`/update`（update）、`/download`、`/upload`（file）；`/proxy`、`/sample` 由仓库内置插件提供，`/code`、`/process` 来自独立插件仓库（process 插件已于 2026-10-29 移出主仓库）
 - 全部蓝图统一无 `url_prefix`，路由一律写显式全路径
 - 静态资源：`/shared/static/...`（公共）、`/main/static/...`、`/screen/static/...`、`/term/static/...`、`/bilimusic/static/...`、`/update/static/...`（业务）
 - 根路由 `/` = 主页（main_bp 直挂，无重定向）
@@ -124,7 +126,7 @@ RemoteConnecter/
 
 ---
 
-## 四、当前状态（v1.6-beta3）
+## 四、当前状态（v1.7.2-beta.2，2026-10-29）
 
 ### 已完成
 - ✅ 业务模块移入 `functions/`，蓝图自动扫描注册
@@ -142,7 +144,7 @@ RemoteConnecter/
 - ✅ v1.6-beta1：插件系统上线（四级目录 + plugin.json 清单 + 四类容错），全链路实测通过（覆盖优先级、lib 依赖、损坏清单隔离）
 - ✅ v1.6-beta3：`getPluginDirs` 目录过滤统一为尾部列表推导；版本号 v1.6-beta3
 - ✅ v1.6（`142d50b`）：宿主抽离——`hosts/` 包（blueprintHost + pluginHost），主入口瘦身至 44 行；25 条路由全量测试通过；build-product.cmd 补 hosts hidden-import
-- ✅ MEMORY.md 整合插件系统/宿主抽离全部经验；删除 `.trae/documents/` 计划文档与 `.claude/`（2026-09-26）
+- ✅ MEMORY.md 整合插件系统/宿主抽离全部经验；删除 `.claude/`（2026-09-26）。**修正（2026-11-07 核对）**：`.trae/documents/` 当时虽删，但 2026-10-23 的 `c0c136c`（Code 工作台）又把 5 份设计文档重新入库，现仍被 git 跟踪（`git ls-files .trae` 可查）
 - ✅ **v1.6-beta3 打包态全量验证（2026-09-26）**：build-product.cmd 打包成功（exe 约 20.6MB）；exe 同级放 `plugins/sample`+`plugins/proxy`，23/23 路由全过（15 条内置蓝图 + MJPEG 流 HEAD 200 + 4 条插件路由 + `/shared/static/common.css` + POST 路由存在性 405/400/415）；首页确认显示 `v1.6-beta3`；reloader 双进程在 exe 下同样生效（3 进程：onefile 父 + reloader 父子）
 - ✅ **v1.6-beta3 终端控制键增强（2026-09-27，`b01e07f`）**：新增 Enter 控制键（svgrepo 533683 Return 形箭头，发 `\r`）；TAB/ESC 改"框+文字"SVG 样式（文字 6.5 号 Consolas）；单击 `#status` 状态文字切换 `#control-keys` 显隐，localStorage 键 `showControlKeys` 记忆（标记挂 `#control-keys` 自身，避免被 `setStatus` 重写 className 清掉）；增量重打包验证通过（exe 20.1MB）
 - ✅ **官方插件内嵌打包（2026-09-27）**：`plugins/` 直接 `--add-data "plugins;plugins"` 打进 exe 自带层 `_MEI/plugins`，开发/生产两个 build 脚本都加、不区分环境；版本号转正 `v1.6`（待打包验证自带层加载）
@@ -154,17 +156,23 @@ RemoteConnecter/
 - ✅ **侧边栏覆盖层移植（2026-10-22，分支 `feat/sidebar-overlay`，已合入 main `3d6de69`）**：探测 factorization.top/rsc 的实现模式（`<aside>` fixed + `translateX` 滑入滑出 + 独立遮罩 div，class 切换驱动）移植到本项目：`term.html` 加 `#sidebar-overlay`；`term.css` 将 `#sidebar` 从 flex 推挤布局改为 fixed 覆盖层（`translateX(-100%)→0`，0.25s ease），遮罩淡入淡出，暗色主题半透明+`backdrop-filter: blur(8px)`，删 640px 媒体查询里冗余 fixed 规则；`term.js` 新增 `setSidebarOpen()` 统一同步侧边栏/遮罩 class 与 localStorage 偏好，点遮罩收起；**☰ 展开按钮全视口宽度始终显示**（用户要求，未引入源站 768px 显隐断点）
 - ✅ **侧边栏 X 关闭按钮（2026-10-22，`552bd57`→`d74e808` 回退→`f824fcd` 重实现）**：侧边栏标题"终端"改为 X（SVG）关闭按钮 `#sidebar-close`（32px 圆角，hover 变红 `#f85149`），`#sidebar-head` 加 `gap:8px`。**教训**：首次实现破坏界面布局，用户要求回退到覆盖层重写版（d74e808 整体还原到 519243b），先推送回退态再增量重实现——破坏性前端改动应小步提交
 - ✅ **打包态全量浏览器测试 T1-T6 全过（2026-10-22，dist exe + 浏览器代理）**：T1 会话命令 echo / T2 刷新恢复+回放（`needReplay` 一次性消费）/ T3 快速刷新×3 无 Invalid frame header 与 1006 / T4 多会话前台 connected 后台 detached / T5 侧边栏覆盖层全交互（fixed 定位、遮罩 class 同步、X 按钮与点遮罩收起均生效）/ T6 控制台健康。**踩坑**：旧 exe 孤儿进程残留占 80 端口 → 新实例 500 `TemplateNotFound: term.html`（旧 `_MEI` 无新模板，具迷惑性）——打包测试前必须 `taskkill /IM RemoteConnecter.exe /F` 全清再启动
-- ✅ **分支收尾（2026-10-23）**：临时分支本地+远端全删（`feat/term-multi-reconnect` 随 GitHub PR 合并被远端自动删、`feat/sidebar-overlay` 手动删、残留 worktree-agent-* 分支清理），仅剩 `main` 与 `Win7`；工作区未提交：`utils.py`（v1.7.1-beta.1）、`build.cmd`、`plugins/proxy/*`、`functions/update/repoUpdate.py` 草稿、`.trae/`
+- ✅ **分支收尾（2026-10-23）**：临时分支本地+远端全删（`feat/term-multi-reconnect` 随 GitHub PR 合并被远端自动删、`feat/sidebar-overlay` 手动删、残留 worktree-agent-* 分支清理），仅剩 `main` 与 `Win7`；工作区未提交：`utils.py`（v1.7.1-beta.1）、`build.cmd`、`plugins/proxy/*`、`functions/update/repoUpdate.py` 草稿、`.trae/`——（2026-11-07 注：这些改动此后均已提交入库，工作区现已干净）
 - ✅ **Code 插件 `/code`（2026-10-23，`c0c136c` + 本次 UI 修复）**：VS Code 风格工作台（无 titlebar、活动栏、资源管理器、欢迎页水印、状态栏、终端面板）；Monaco 多标签、Markdown 预览、F5、菜单/命令面板/快捷键；`/code/api/workspaces` 注册根目录后仅传 `workspaceId + 相对路径`，`rc_code_fs.py` 负责沙箱/编码/EOL/ETag/原子保存；内嵌终端复用 `/term` WS，`mode=single` 断线即杀不恢复，multi 保持原行为。**关键坑**：Monaco 的 `editor.main.css` 自带全局 `.codicon[class*=codicon-] { font:16px/1 codicon }`，加载后会覆盖 `code.css` 的图标尺寸/字体，导致刷新时水印与图标突变；UI 图标统一加 `body` 前缀提高优先级，并使用独立 `rc-codicon` 字体，Monaco 内部保留 `codicon`。状态栏不显示运行时列表，运行时仅用于 F5/终端。
 
-### 分支结构（2026-10-24 重组）
-- `feat/app-improvements`：主程序非插件功能合集（term 多模式/版本号/打包修复/.trae 文档/repoUpdate/debug 门控/文件列表/屏幕键盘/MEMORY），基于 main
-- `feat/auto-dev-2`：屏幕鼠标增强 + process 插件（原基于 temp/code-editor，该分支已删，插件源码权威在 RemoteVSCode `e6554d8`）
+### 分支结构
+
+**现状（2026-11-07）**：本地只剩 `main` 与 `Win7`（`12c3902`，v1.4.2，无终端）。以下功能分支均已合入 main 并删除：
+- `feat/app-improvements`（`7a45396` 合入）：主程序非插件功能合集（term 多模式/版本号/打包修复/.trae 文档/repoUpdate/debug 门控/文件列表/屏幕键盘/MEMORY）
+- `feat/auto-dev-2`（`9f92ff8` 合入）：屏幕鼠标增强 + process 插件；process 插件源码权威在 RemoteVSCode `e6554d8`，已于 `e286549` 从主仓库移除
 - ~~`temp/code-editor`~~ **已删除**（2026-10-24）：plugins/code 部分完整镜像于 github.com/mc-lhz/RemoteVSCode，非插件部分抽至 feat/app-improvements，删除前三重验证通过
 
 - ✅ **系统面板 + 文件管理器双模块（2026-10-24，分支 `feat/system-console`）**：新增 `functions/monitor`（`/monitor` 系统面板：ctypes 实现 CPU/内存/多磁盘/运行时长/空闲检测零依赖，快动作音量/锁屏/关显示器/睡眠 via keybd_event+rundll32，重启/关机带确认与 5s 延迟提示，进程 tab 按名聚合显示数量与总内存、搜索、结束（黑名单保护 smss/csrss/lsass 等关键进程与 PID<=4），窗口 tab EnumWindows 列表+激活/最小化/关闭，应用 tab 扫开始菜单 .lnk 启动；终端 pill 复用 `functions.term.term_bp.sessionMap` 计数）与 `functions/files`（`/files` 文件管理器：侧栏快速访问+盘符+收件箱(localStorage 记忆)，网格视图+图片缩略图(Pillow /files/api/thumb)，右键菜单 预览(文本多编码/图片)/记事本/问AI(复制提问模板到剪贴板)/终端中打开/下载(多项自动 zip)/压缩(zipfile)/复制/移动(冲突自动 " (n)" 后缀)/复制路径/重命名/属性/删除(保护盘根与主目录)，批量选择(ctrl/shift)+底部操作栏，显示隐藏项(GetFileAttributesW H 标记)，上传冲突自动改名；`term.js` 加 `?cwd=` 支持（connectWs 追加 cwd 且无恢复会话时自动新建），文件管理器"在终端中打开"实测提示符直达目标目录）。首页 header 增加四入口(面板/文件/终端/屏幕)。**测试基建注意**：新模块目录必须含 `__init__.py`（pkgutil 发现的前提）；GetLogicalDriveStringsW 结果须用 `ctypes.wstring_at(buf, copied)` 取全（`buf.value` 首个 NUL 截断）；`GlobalMemoryStatusEx`/`GetTickCount` 在 kernel32 不在 psapi/user32；Playwright 测结束进程必须用唯一命名的牺牲进程（复制 ping.exe 改名）并按行文本精确匹配，否则搜索未刷新时点首行会误杀 ZCode（已踩坑）。UI 页面/静态均为模块自带 template/static，蓝图名 `monitor_bp`/`files_bp` 与现有 `file_bp` 无冲突。
 
 - ✅ **收尾加固批次（2026-10-25，main `0e39d25`）**：① `RC_PORT` 环境变量覆盖监听端口（默认 80 不变，打包冒烟/多实例调试用）`0f09f98`；② **打包冒烟全过**：build.cmd 产出 28.6MB exe，`/`、`/monitor`、`/files`、`/process`、`/code`、`/terminal`、`/screenshot`(HEAD)、office health（内嵌插件+gzip 变体）、monitor ctypes stats、process 375 进程、code runtimes 全 200——四类新模块与五插件自动入包，无需改构建脚本（冒烟在其后以 RC_PORT=8099 运行、taskkill 清理）；③ 文件管理器框选（拖拽矩形实时选中，ctrl 追加、空白单击清空）+ 移动端长按选中（合成 touch 验证，右键菜单对触摸抑制）`382a506`；④ 实时屏幕参数化：`fps/quality/scale` 查询参数 + 静止帧跳过（画面无变化不编码，最长 2s 保活）+ `/screenshot/api/size` 真实分辨率端点，前端「流畅/标准/高清」预设（localStorage）+ 页面隐藏自动断开恢复重连；**实测流畅档 54KB/2s vs 高清档 304KB/2s，约 5.6 倍带宽差**；点击映射改用服务端真实尺寸（缩放后 naturalWidth=1408 而非 2560 的坑）`90c854b`；⑤ monitor CPU/内存 60 点走势迷你图（canvas，纯客户端）`03aee4a`；⑥ 文件管理器拖拽上传（合成 DataTransfer drop 验证）+ 排序切换六种（localStorage 记忆）`af670cd`；⑦ 文件管理器键盘快捷键 Ctrl+A 全选 / Delete 删除 / F2 重命名 / Enter 打开（输入框聚焦时让行）+ monitor 窗口/应用也支持搜索过滤（tab 切换占位提示）`f12a4aa`；⑧ 仓库首个 README.md（功能总览/快速开始/插件开发/构建注意）`0e39d25`。全量回归：8 个 Playwright 套件（终端 7/7、工作台 6/6、监控 11、文件 16、框选 8、拖拽排序 8、快捷键 8、屏幕 8）+ 4 个 Python 套件（process api/ui、screen key/mouse）全过；code 工作台仅余 2 条既有 Monaco「Canceled」无害噪音（合并前后一致）。**测试踩坑**：Playwright 在输入框聚焦后首个组合键会投递到 CDP 旧焦点节点（用合成 KeyboardEvent 断言处理器、真实按键路径由后续步骤覆盖）；导航后等待断言须「新条目在场且旧条目不在场」，仅等条目数会被上一目录的旧渲染竞态骗过。
+
+- ✅ **终端 DEC 模式恢复 + process 插件移出 + 版本升至 v1.7.2-beta.2（2026-10-29，`e286549`）**：回放缓冲滚动淘汰会丢掉 TUI 应用启动初期的模式开启序列（`?1000h` 鼠标上报 / `?1006h` SGR / `?1049h` 备用屏），fresh 客户端回放重建了画面却丢失鼠标模式，滚轮被 xterm.js 本地消费，被控端 opencode 收不到滚轮输入。修复：`TermSession._trackDecModes` 在 `_reader` 线程随输出流持续追踪 DEC 私有模式状态（`seqTail` 携带跨块截断的 CSI 前缀）；`wsTerminal` 在 `wantReplay` 时于回放前重放当前开启的白名单模式（`decModeRestoreSeq`），同页重连不重发以免清空备用屏。同提交移除已迁出的内置 process 插件（5 文件、570 行），`VERSION` → `v1.7.2-beta.2`；`dist/RemoteConnecter.exe` 21MB 于同分钟产出，tag 已打（Release 页面待核对）。
+
+- ✅ **终端抢占接管（2026-11-07，分支 `feat/term-displaced-takeover`）**：解决两台设备同时打开 `/terminal` 时每秒互踢。根因三处叠加——`term.js` 的 `restoreSessions` 在全部会话已附着时退化为取 `items[0]`、服务端 attach 直接覆盖 `attached`、被踢方 `onclose` 无条件自动重连。服务端失权时先发 `{"type":"displaced"}` 再退出主循环；前端新增 `apoptotic` 状态：收到 displaced 停止自动重连并弹全屏遮罩卡片（主按钮「重新接管终端」、次按钮「关闭」，关闭后工具条保留 `#reclaim-btn` 兜底入口），接管只重新 attach、不重置本地画面；坏死（普通 onclose）仍指数退避自动重连，状态文字补实际等待秒数「重连中 (第 N 次, Xs 后重试)」。**顺带修复回放路径既有缺陷**：回放内容里的 DA 查询会让 xterm 生成 `?1;2c` 应答并经 `onData` 写进 pty，污染 shell 输入缓冲（刷新页面后首条命令变乱码）；服务端回放完发 `replayDone`，前端在回放解析期间抑制 `onData`，并按 `term.write` 回调等待解析队列排空后再恢复输入（xterm 解析是异步的，仅凭 replayDone 会过早放行）。验证：Playwright + Edge 16/16 全过（凋亡不自动抢占、接管与兜底按钮、退避秒数、接管后输入/回放）+ 刷新回放回归 3/3。
 
 ### 进行中 / 待办
 
@@ -172,7 +180,7 @@ RemoteConnecter/
 - ✅ 文件列表改为仅显示文件名 + 顶部路径栏（2026-10-24，`81b8b99`）：`file-manager.js` 列表项从完整路径改 basename（保留原大小写，盘符根显示 `C:`），完整路径移 `data-path`（点击改读 dataset，修复含空格/中文路径的文件打开 URL 未编码问题），新增 `#current-path` 路径栏随目录切换
 - ✅ **实时屏幕"部分按键不可用"修复（2026-10-24，`7679fbe`）**：四类根因——①含 `+` 的字符被组合键 `split('+')` 撕碎（改逐键多参数 `keys=a&keys=%2B`，后端 `getlist`，旧单参数格式兼容）；②孤立修饰键从不转发（单按 Shift 切输入法/单按 Alt 呼出菜单栏/Ctrl+Shift 切输入法全失效——前端补修饰键状态机：纯修饰组合在第二键按下瞬间发送、孤立修饰键在松开瞬间补发）；③`ArrowLeft` 被映射成后端不认识的 `arrowleft`，pynput 当普通字符逐字打出（改映射 `left/up/down/right`）；④中文 IME 组字阶段 `e.key='Process'` 与死键 `'Dead'` 被当普通键发送（过滤+提示），另补 AltGraph→alt_gr、ContextMenu→menu。**测试方式**：后端 mock 控制器验证按键序列（绝不真实注入按键）、前端 stub `$.get` 验证映射/状态机
 - ✅ **远程鼠标增强（2026-10-24，分支 `feat/auto-dev-2` `4941acb`）**：滚轮（60ms 累积合并、Chromium deltaY 方向换算 pynput、±10 截断）、拖拽（6px 移动阈值 → 远端 press→move→release 序列，拖拽后 click 事件抑制 300ms 防误触，mouseup 挂 document/失焦兜底释放防卡键）、move/press/release 后端 controlType、click 支持 count（双击由两次快速单击天然产生，前端不加 dblclick 监听避免四连击）
-- ✅ **process 进程管理插件（2026-10-24，分支 `feat/auto-dev-2` `f413705`）**：`/process` 进程表（CPU 归一化单核/内存降序/500 截断）+ 名称 PID 过滤 + 3s 自动刷新（页面隐藏暂停）；终止带自保护（拒杀自身/父进程/Windows 关键系统进程）、PID 复用校验（名称不匹配 409）、terminate 超时升级 kill；依赖 psutil（main_bp 已引入，打包已覆盖）。**新插件开发参照 `plugins/process/` 的最小结构**（plugin.json + xxx_bp.py + templates/static，纯 stdlib+已打包依赖）
+- ✅ **process 进程管理插件（2026-10-24，分支 `feat/auto-dev-2` `f413705`）**：`/process` 进程表（CPU 归一化单核/内存降序/500 截断）+ 名称 PID 过滤 + 3s 自动刷新（页面隐藏暂停）；终止带自保护（拒杀自身/父进程/Windows 关键系统进程）、PID 复用校验（名称不匹配 409）、terminate 超时升级 kill；依赖 psutil（main_bp 已引入，打包已覆盖）。**新插件开发参照 `plugins/process/` 的最小结构**（plugin.json + xxx_bp.py + templates/static，纯 stdlib+已打包依赖）。**注：该插件已于 2026-10-29（`e286549`）移出主仓库**，权威源码在 RemoteVSCode `e6554d8`；主仓库现只有 `plugins/sample`（最小示例）与 `plugins/proxy`
 - ✅ **Code 插件全工作区替换（2026-10-24，`ed5b797`）**：`POST /code/api/fs/replace` 与搜索同语义，逐文件读取→替换→带 etag 原子写回（并发冲突跳过计入 conflicts、脏标签不重载、替换内容按字面量）；搜索面板替换行 + 全部替换按钮 + 危险二次确认，完成后自动重载受影响标签/刷新树/重搜；Ctrl+H 聚焦替换框，搜索视图自动预填编辑器选中文本
 - ✅ 优化实时屏幕，提升公网访问流畅性（2026-10-25，`90c854b`：画质预设/静止帧跳过/隐藏暂停，实测约 5.6 倍带宽差，见上方）
 - ✅ 修复实时屏幕部分按键不可用的 Bug（2026-10-24，`7679fbe`，见上方已完成）
@@ -189,7 +197,7 @@ RemoteConnecter/
 - ✅ **Code 插件全工作区搜索 + Ctrl+P 快速打开（2026-10-24，`1c07f04`/`065c876`）**：`GET /code/api/fs/search`（按行匹配、大小写/正则开关、跳过隐藏目录与 node_modules/__pycache__/符号链接、单文件 512KB/100 命中与总命中 500 截断、二进制经 decodeText 拒绝、返回 previewCol/previewLength 供高亮）+ `GET /code/api/fs/list`（全工作区文件名列表）；侧栏拆"资源管理器/搜索"双视图（活动栏切换、再点收起），搜索面板防抖自动搜索 + Aa/.*/刷新/清空按钮 + 按文件分组高亮结果，点击经 `CodeEditor.revealPosition(path,line,col)` 跳转；Ctrl+Shift+F 开搜索、Ctrl+P 快速打开（模糊子序列打分，文件列表 15s 缓存）。F5 UI 实测补齐（Python 脏保存→运行→落盘、Node、控制台零错误，全 PASS）；另有 Ctrl+G 跳转到行（`b5167a1`）。**回归脚本坑（已修复，现 22/22）**：`code_ui_regression.py` 的 save 用例曾用 `monaco.editor.getModels()[0]` 取模型，多标签时索引指向先打开的文件（写错 model + saveActive 对干净活动标签直接 true）——已改为按 `m.uri.path.endsWith()` 定位；另需在控制台检查中排除用例预清理 404 与 Monaco 内部无害噪音 `Uncaught _: Canceled`（模型/标签快速切换时被取消的 promise）
 - ✅ **repoUpdate 修复 + 生产关闭 debug/reloader（2026-10-24，`56b6e66`/`63ca014`）**：repoUpdate.py 修 `downloadUpdater` 未定义 `availableNodes`、`getRelease()` 返回值未用（现提取资产地址传入下载器）、去导入时 `os.chdir` 副作用、全请求加超时 + 流式下载 + MZ 头校验 + 临时文件原子替换（实测 11/16 节点可用、GitHub API 取到 v1.7.1）；`RemoteConnecter.py` 改 `isPackaged()` 时自动关 debug/reloader（frozen 下 reloader 双进程 + 调试器任意代码执行风险），开发态 `RC_DEBUG=0` 可临时关闭
 - ⏳ `.gitignore` 插件策略待定：仓库 `plugins/`（sample/proxy）是官方插件需入库打包；若日后出现用户级/运行时生成的插件目录才需要忽略
-- ⏳ `functions/update/repoUpdate.py`（未跟踪草稿）：仓库更新器，有 bug（`downloadUpdater` 引用未定义的 `availableNodes`，`getRelease()` 返回值未用）
+- ✅ ~~`functions/update/repoUpdate.py` 未跟踪草稿（有 bug：`downloadUpdater` 引用未定义的 `availableNodes`、`getRelease()` 返回值未用）~~ 已修复并入库（2026-10-24，`56b6e66`，见本节上方「repoUpdate 修复」）
 - ✅ 生产环境关闭 `app.run` 的 debug/reloader（2026-10-24，`63ca014`）：`isPackaged()` 时自动关闭，开发态 `RC_DEBUG=0` 可临时关闭（原风险：frozen 下 reloader spawn 双进程、debug 调试器任意代码执行）
 - ⏳ 构建时选择 ConPTY/WinPTY 后端（build-time-pty-backend-selection 方案已论证，未实施）：pywinpty 的 `PtyProcess.spawn(..., backend=Backend.WinPTY)` 可显式指定后端，同一份源码打 Win10/Win7 两个 exe
 
@@ -203,7 +211,7 @@ RemoteConnecter/
 
 ## 五、历史重要改动记录
 
-### v1.5.3-beta1 / beta2 / beta3（详见 更新说明.md）
+### v1.5.3-beta1 / beta2 / beta3（更新日志不入库，详见 GitHub Releases）
 - **xterm.js 本地化**：xterm@5.3.0 + xterm-addon-fit@0.8.0 下载至 `functions/term/static/`，`term.html` 改为本地 `/term/static/...` 引用，去掉 CDN（cf → jsdelivr 下载）
 - **终端 resize 重构**：`term.html` 将 `term.onResize` 与 `window resize` 两个 handler 合并为单一 `sendResize()` 函数；连接时在 `ws.onopen` 中立即调用 `sendResize()` 同步初始尺寸（修复首次 resize 丢失 bug）
 - **`file-btn` → `action-btn`**：CSS 类名泛化（更普适）；`index.html` 终端按钮改 `onclick="open('/terminal','_blank')"` 新标签页打开全屏终端
@@ -310,12 +318,14 @@ build.cmd --show-console
 
 ---
 
-## 九、GitHub Releases 速查（2026-09-26 抓取）
+## 九、GitHub Releases 速查（2026-09-26 抓取；v1.7 段为本地 tag 补充，未核对 Release 页面）
 
 - **v1.5.3-beta2**（Pre-release）：终端 Termux 风格控制键；**其中列出的 Todo List 即上方"产品功能待办"的来源**
 - **v1.5.3-beta1**（Pre-release）：xterm.js 本地化去 CDN、resize 重构、`file-btn`→`action-btn`
 - **v1.5.3**（正式版）：169.254 划线置底 + 控制键方形图标；release 声明插件功能已完成待下版正式发布
 - **v1.6-beta1**（Pre-release）：插件系统核心（目录/清单/契约/容错完整文档）+ 首页网卡 IP 列表
 - **v1.6-beta2**（Pre-release）：插件系统完善（四级目录覆盖、static/templates/lib、单插件失败不阻断）
+- **v1.7 → v1.7.2-beta.2**（本地 tag 依次为 `v1.7` / `v1.7.1-beta.1` / `v1.7.1` / `v1.7.2-beta.1` / `v1.7.2-beta.2`，后者 = `e286549`）：多终端会话与断线重连、侧边栏覆盖层、系统面板/文件管理器、实时屏幕参数化、Code 工作台等，详见第四、五节
+- **v1.7.2**（正式版，2026-11-07，从 `feat/term-displaced-takeover` 分支发布，**未合并 main**）：终端抢占接管（凋亡/坏死两种语义 + 全屏接管卡片 + 兜底入口）、回放注入设备应答导致首条命令乱码修复
 - 发布地址：`https://github.com/mc-lhz/RemoteConnecter/releases`（gitee 同步）
 - 发版惯例：beta 为 Pre-release，正式版不带 Pre 标记；CHANGELOG 含 新增/优化/修复/注意/升级说明 分段
