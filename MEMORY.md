@@ -11,7 +11,7 @@
 
 **形态**：Flask 后端 + 浏览器控制终端，打包为单文件 exe 部署在机房电脑上，通过浏览器（局域网/内网穿透）远程管理。
 
-**当前版本**：`v1.7.2`（从 `feat/term-displaced-takeover` 分支发布，分支顶 `95263c1` + release 提交，tag `v1.7.2`；main 仍停在 `v1.7.2-beta.2`（`e286549`），本次**未合并 main**。`dist/RemoteConnecter.exe` 按该版本打包）
+**当前版本**：`v1.7.3-beta.1`（main 顶 `668aa3a`，由 `feat/term-displaced-takeover` 以 `--no-ff` 合并而来；分支上的 v1.7.2 与 v1.7.3-beta.1 提交均已并入。注：`dist/RemoteConnecter.exe` 于 2026-11-08 22:21 按 v1.7.2 打包并完成无头冒烟，合并后版本已升到 v1.7.3-beta.1，该 exe 需重新打包才是最新版本）
 
 **技术栈**：
 - 后端：Python 3.9（`python39/` 内嵌环境）、Flask 3.1.2、flask_sock（WebSocket）、pywinpty（ConPTY 终端）、pygame（音频播放）、Pillow/pyautogui（屏幕控制）
@@ -161,7 +161,8 @@ RemoteConnecter/
 
 ### 分支结构
 
-**现状（2026-11-07）**：本地只剩 `main` 与 `Win7`（`12c3902`，v1.4.2，无终端）。以下功能分支均已合入 main 并删除：
+**现状（2026-11-08）**：本地只剩 `main` 与 `Win7`（`12c3902`，v1.4.2，无终端）。以下功能分支均已合入 main 并删除：
+- `feat/term-displaced-takeover`（`668aa3a` 合入，2026-11-08）：终端抢占接管 + 回放应答污染修复；本地与远端分支均已删除
 - `feat/app-improvements`（`7a45396` 合入）：主程序非插件功能合集（term 多模式/版本号/打包修复/.trae 文档/repoUpdate/debug 门控/文件列表/屏幕键盘/MEMORY）
 - `feat/auto-dev-2`（`9f92ff8` 合入）：屏幕鼠标增强 + process 插件；process 插件源码权威在 RemoteVSCode `e6554d8`，已于 `e286549` 从主仓库移除
 - ~~`temp/code-editor`~~ **已删除**（2026-10-24）：plugins/code 部分完整镜像于 github.com/mc-lhz/RemoteVSCode，非插件部分抽至 feat/app-improvements，删除前三重验证通过
@@ -172,7 +173,7 @@ RemoteConnecter/
 
 - ✅ **终端 DEC 模式恢复 + process 插件移出 + 版本升至 v1.7.2-beta.2（2026-10-29，`e286549`）**：回放缓冲滚动淘汰会丢掉 TUI 应用启动初期的模式开启序列（`?1000h` 鼠标上报 / `?1006h` SGR / `?1049h` 备用屏），fresh 客户端回放重建了画面却丢失鼠标模式，滚轮被 xterm.js 本地消费，被控端 opencode 收不到滚轮输入。修复：`TermSession._trackDecModes` 在 `_reader` 线程随输出流持续追踪 DEC 私有模式状态（`seqTail` 携带跨块截断的 CSI 前缀）；`wsTerminal` 在 `wantReplay` 时于回放前重放当前开启的白名单模式（`decModeRestoreSeq`），同页重连不重发以免清空备用屏。同提交移除已迁出的内置 process 插件（5 文件、570 行），`VERSION` → `v1.7.2-beta.2`；`dist/RemoteConnecter.exe` 21MB 于同分钟产出，tag 已打（Release 页面待核对）。
 
-- ✅ **终端抢占接管（2026-11-07，分支 `feat/term-displaced-takeover`）**：解决两台设备同时打开 `/terminal` 时每秒互踢。根因三处叠加——`term.js` 的 `restoreSessions` 在全部会话已附着时退化为取 `items[0]`、服务端 attach 直接覆盖 `attached`、被踢方 `onclose` 无条件自动重连。服务端失权时先发 `{"type":"displaced"}` 再退出主循环；前端新增 `apoptotic` 状态：收到 displaced 停止自动重连并弹全屏遮罩卡片（主按钮「重新接管终端」、次按钮「关闭」，关闭后工具条保留 `#reclaim-btn` 兜底入口），接管只重新 attach、不重置本地画面；坏死（普通 onclose）仍指数退避自动重连，状态文字补实际等待秒数「重连中 (第 N 次, Xs 后重试)」。**顺带修复回放路径既有缺陷**：回放内容里的 DA 查询会让 xterm 生成 `?1;2c` 应答并经 `onData` 写进 pty，污染 shell 输入缓冲（刷新页面后首条命令变乱码）；服务端回放完发 `replayDone`，前端在回放解析期间抑制 `onData`，并按 `term.write` 回调等待解析队列排空后再恢复输入（xterm 解析是异步的，仅凭 replayDone 会过早放行）。验证：Playwright + Edge 16/16 全过（凋亡不自动抢占、接管与兜底按钮、退避秒数、接管后输入/回放）+ 刷新回放回归 3/3。
+- ✅ **终端抢占接管（2026-11-07，分支 `feat/term-displaced-takeover`）**：解决两台设备同时打开 `/terminal` 时每秒互踢。根因三处叠加——`term.js` 的 `restoreSessions` 在全部会话已附着时退化为取 `items[0]`、服务端 attach 直接覆盖 `attached`、被踢方 `onclose` 无条件自动重连。服务端失权时先发 `{"type":"displaced"}` 再退出主循环；前端新增 `apoptotic` 状态：收到 displaced 停止自动重连并弹全屏遮罩卡片（主按钮「重新接管终端」、次按钮「关闭」，关闭后工具条保留 `#reclaim-btn` 兜底入口），接管只重新 attach、不重置本地画面；坏死（普通 onclose）仍指数退避自动重连，状态文字补实际等待秒数「重连中 (第 N 次, Xs 后重试)」。**顺带修复回放路径既有缺陷**：回放内容里的 DA 查询会让 xterm 生成 `?1;2c` 应答并经 `onData` 写进 pty，污染 shell 输入缓冲（刷新页面后首条命令变乱码）；服务端回放完发 `replayDone`，前端在回放解析期间抑制 `onData`，并按 `term.write` 回调等待解析队列排空后再恢复输入（xterm 解析是异步的，仅凭 replayDone 会过早放行）。验证：Playwright + Edge 16/16 全过（凋亡不自动抢占、接管与兜底按钮、退避秒数、接管后输入/回放）+ 刷新回放回归 3/3。**已于 2026-11-08 经 `--no-ff` 合入 main（`668aa3a`），临时分支随后删除。**
 
 ### 进行中 / 待办
 
@@ -326,6 +327,6 @@ build.cmd --show-console
 - **v1.6-beta1**（Pre-release）：插件系统核心（目录/清单/契约/容错完整文档）+ 首页网卡 IP 列表
 - **v1.6-beta2**（Pre-release）：插件系统完善（四级目录覆盖、static/templates/lib、单插件失败不阻断）
 - **v1.7 → v1.7.2-beta.2**（本地 tag 依次为 `v1.7` / `v1.7.1-beta.1` / `v1.7.1` / `v1.7.2-beta.1` / `v1.7.2-beta.2`，后者 = `e286549`）：多终端会话与断线重连、侧边栏覆盖层、系统面板/文件管理器、实时屏幕参数化、Code 工作台等，详见第四、五节
-- **v1.7.2**（正式版，2026-11-07，从 `feat/term-displaced-takeover` 分支发布，**未合并 main**）：终端抢占接管（凋亡/坏死两种语义 + 全屏接管卡片 + 兜底入口）、回放注入设备应答导致首条命令乱码修复
+- **v1.7.2**（正式版，2026-11-07，从 `feat/term-displaced-takeover` 分支发布，**已于 2026-11-08 合入 main**（`668aa3a`，--no-ff））：终端抢占接管（凋亡/坏死两种语义 + 全屏接管卡片 + 兜底入口）、回放注入设备应答导致首条命令乱码修复
 - 发布地址：`https://github.com/mc-lhz/RemoteConnecter/releases`（gitee 同步）
 - 发版惯例：beta 为 Pre-release，正式版不带 Pre 标记；CHANGELOG 含 新增/优化/修复/注意/升级说明 分段
